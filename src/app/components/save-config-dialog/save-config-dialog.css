@@ -1,0 +1,71 @@
+.dialog-container {
+  padding: 8px;
+}
+
+.dialog-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.success-icon {
+  font-size: 64px;
+  width: 64px;
+  height: 64px;
+  color: #4caf50;
+  margin-bottom: 16px;
+}
+
+h2 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: #333;
+}
+
+mat-dialog-content {
+  padding: 0 24px;
+  max-width: 500px;
+}
+
+.dialog-message {
+  font-size: 16px;
+  color: #333;
+  margin: 16px 0 8px 0;
+  text-align: center;
+  font-weight: 500;
+}
+
+.dialog-submessage {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.6);
+  margin: 0 0 24px 0;
+  text-align: center;
+}
+
+.full-width {
+  width: 100%;
+}
+
+mat-form-field {
+  margin-bottom: 16px;
+}
+
+mat-dialog-actions {
+  padding: 16px 24px;
+  gap: 12px;
+}
+
+mat-dialog-actions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+mat-dialog-actions button mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}

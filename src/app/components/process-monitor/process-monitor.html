@@ -1,0 +1,77 @@
+<div class="process-monitor-container">
+  <div class="header">
+    <h2>
+      <mat-icon>monitor_heart</mat-icon>
+      Monitor de Procesos
+    </h2>
+    <p class="subtitle">Estado de las configuraciones enviadas al orquestador</p>
+  </div>
+
+  <div class="content">
+    @if (processes.length === 0) {
+      <div class="no-processes">
+        <mat-icon>inbox</mat-icon>
+        <p>No hay procesos en el monitor</p>
+        <p class="hint">Los procesos enviados al orquestador aparecerán aquí</p>
+      </div>
+    } @else {
+      <div class="processes-actions">
+        <button mat-button color="warn" (click)="clearAll()">
+          <mat-icon>clear_all</mat-icon>
+          Limpiar Todo
+        </button>
+      </div>
+
+      <mat-accordion>
+        @for (process of processes; track process.id) {
+          <mat-expansion-panel [class]="getStatusClass(process.status)">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon [class]="'status-icon ' + getStatusClass(process.status)">
+                  {{ getStatusIcon(process.status) }}
+                </mat-icon>
+                <span class="process-client">{{ process.clientName }}</span>
+                <mat-chip [class]="'status-chip ' + getStatusClass(process.status)">
+                  {{ process.status === 'pending' ? 'Pendiente' :
+                     process.status === 'processing' ? 'Procesando' :
+                     process.status === 'success' ? 'Exitoso' :
+                     'Error' }}
+                </mat-chip>
+              </mat-panel-title>
+              <mat-panel-description>
+                <span class="process-time">{{ formatTimestamp(process.timestamp) }}</span>
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+
+            <div class="process-details">
+              <div class="process-message">
+                <strong>Mensaje:</strong> {{ process.message }}
+              </div>
+
+              @if (process.response) {
+                <div class="process-response">
+                  <strong>Respuesta:</strong>
+                  <pre>{{ process.response | json }}</pre>
+                </div>
+              }
+
+              @if (process.error) {
+                <div class="process-error">
+                  <strong>Error:</strong>
+                  <pre>{{ process.error | json }}</pre>
+                </div>
+              }
+
+              <div class="process-actions">
+                <button mat-button color="warn" (click)="removeProcess(process.id)">
+                  <mat-icon>delete</mat-icon>
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </mat-expansion-panel>
+        }
+      </mat-accordion>
+    }
+  </div>
+</div>

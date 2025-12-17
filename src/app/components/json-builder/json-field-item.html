@@ -1,0 +1,124 @@
+<mat-card class="deep-field-card draggable-field"
+          draggable="true"
+          [class.is-column]="field().type === 'column'"
+          [class.is-expression]="field().type === 'expression'"
+          [class.is-object]="field().type === 'object'"
+          [class.is-array]="field().type === 'array'"
+          [class.drag-over-column]="getDragOverClass() === 'drag-over-column'"
+          [class.drag-over-reorder]="getDragOverClass() === 'drag-over-reorder'"
+          [attr.data-container-name]="field().key || 'sin nombre'"
+          (dragstart)="onDragStart($event)"
+          (dragend)="onDragEnd($event)"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event)"
+          (dragleave)="onDragLeave($event)">
+  <mat-card-content>
+    <div class="field-row">
+      <!-- Drag Handle for Reordering -->
+      <mat-icon class="drag-handle" matTooltip="Arrastra para reordenar">drag_indicator</mat-icon>
+
+      <!-- Type Indicator -->
+      <mat-chip class="type-chip"
+                [class.column-chip]="field().type === 'column'"
+                [class.expression-chip]="field().type === 'expression'"
+                [class.object-chip]="field().type === 'object'"
+                [class.array-chip]="field().type === 'array'">
+        @if (field().type === 'column') {
+          <mat-icon>table_chart</mat-icon> Col
+        } @else if (field().type === 'expression') {
+          <mat-icon>functions</mat-icon> Expr
+        } @else if (field().type === 'object') {
+          <mat-icon>data_object</mat-icon> {{ '{}'  }}
+        } @else if (field().type === 'array') {
+          <mat-icon>data_array</mat-icon> []
+        } @else if (field().type === 'null') {
+          <mat-icon>block</mat-icon> Null
+        } @else {
+          <mat-icon>edit</mat-icon> Fijo
+        }
+      </mat-chip>
+
+      <!-- Key Input -->
+      <mat-form-field appearance="outline" class="field-key">
+        <mat-label>Nombre</mat-label>
+        <input matInput
+               [value]="field().key"
+               (change)="updateKey($any($event.target).value)"
+               placeholder="campo">
+      </mat-form-field>
+
+      <!-- Value Input (only for non-container types) -->
+      @if (field().type !== 'object' && field().type !== 'array') {
+        <mat-form-field appearance="outline" class="field-value">
+          <mat-label>Valor</mat-label>
+          <input matInput
+                 [value]="field().value"
+                 (change)="updateValue($any($event.target).value)"
+                 [readonly]="field().type === 'column'"
+                 [placeholder]="field().type === 'expression' ? 'expr:...' : 'Valor'">
+          @if (field().originalColumn) {
+            <mat-hint>{{ field().originalColumn }}</mat-hint>
+          }
+        </mat-form-field>
+      }
+
+      <!-- Actions for nested object/array -->
+      @if (field().type === 'object' || field().type === 'array') {
+        <div class="nested-actions">
+          <button mat-icon-button color="primary"
+                  (click)="addObject(); $event.stopPropagation()"
+                  matTooltip="Agregar objeto hijo">
+            <mat-icon>add_box</mat-icon>
+          </button>
+          <button mat-icon-button color="accent"
+                  (click)="addArray(); $event.stopPropagation()"
+                  matTooltip="Agregar array hijo">
+            <mat-icon>playlist_add</mat-icon>
+          </button>
+        </div>
+      }
+
+      <!-- Remove Button -->
+      <button mat-icon-button color="warn"
+              (click)="remove()"
+              matTooltip="Eliminar">
+        <mat-icon>delete</mat-icon>
+      </button>
+    </div>
+
+    <!-- Type Switcher for custom fields -->
+    @if (field().type !== 'column' && field().type !== 'object' && field().type !== 'array') {
+      <div class="type-switcher">
+        <button mat-button [class.active]="field().type === 'static'" (click)="updateType('static')">
+          Fijo
+        </button>
+        <button mat-button [class.active]="field().type === 'expression'" (click)="updateType('expression')">
+          Expr
+        </button>
+        <button mat-button [class.active]="field().type === 'null'" (click)="updateType('null')">
+          Null
+        </button>
+      </div>
+    }
+
+    <!-- RECURSIVELY render children (INFINITE DEPTH) -->
+    @if ((field().type === 'object' || field().type === 'array') && field().children && field().children!.length > 0) {
+      <div class="deeper-nested-fields">
+        <p class="deeper-nested-label">
+          <mat-icon>subdirectory_arrow_right</mat-icon>
+          Campos dentro de "{{ field().key }}"
+        </p>
+        @for (childField of field().children; track childIdx; let childIdx = $index) {
+          <app-json-field-item
+            [field]="childField"
+            [path]="path().concat([childIdx])"
+            [dragOverPath]="dragOverPath()"
+            [draggedColumn]="draggedColumn()"
+            [draggedFieldPath]="draggedFieldPath()"
+            (action)="handleChildAction($event)">
+          </app-json-field-item>
+        }
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

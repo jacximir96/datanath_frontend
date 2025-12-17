@@ -1,0 +1,640 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Entidades</mat-card-title>
+    <mat-card-subtitle>Define las entidades y sus propiedades</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <!-- Mode Selector -->
+    <div class="mode-selector">
+      <button mat-raised-button
+              [color]="entryMode() === 'dynamic' ? 'primary' : ''"
+              (click)="switchToDynamicMode()"
+              [disabled]="availableOrigins().length === 0"
+              matTooltip="Selecciona una tabla principal con sus relaciones">
+        <mat-icon>cloud_sync</mat-icon> Modo Dinámico
+      </button>
+      <button mat-raised-button
+              [color]="entryMode() === 'manual' ? 'primary' : ''"
+              (click)="switchToManualMode()"
+              matTooltip="Ingresa manualmente las propiedades">
+        <mat-icon>edit</mat-icon> Modo Manual
+      </button>
+    </div>
+
+    @if (availableOrigins().length === 0) {
+      <mat-card class="warning-card">
+        <mat-card-content>
+          <mat-icon color="warn">warning</mat-icon>
+          <p>No hay orígenes configurados. Por favor configura los orígenes en el paso anterior para usar el modo dinámico.</p>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Existing Entities List -->
+    @if (entityGroups().length > 0) {
+      <div class="entities-list">
+        <div class="entities-header">
+          <h3>
+            Modelos/Metamodelos Configurados ({{ entityGroups().length }})
+          </h3>
+        </div>
+
+        @for (group of entityGroups(); track $index) {
+          <mat-expansion-panel class="entity-panel" [expanded]="true">
+            <mat-expansion-panel-header>
+              <mat-panel-title class="group-panel-title">
+                <mat-icon>{{ group.type === 'Metamodelo' ? 'hub' : 'table_chart' }}</mat-icon>
+                <span class="group-name">{{ group.name }}</span>
+                <mat-chip-listbox>
+                  <mat-chip-option [color]="group.type === 'Metamodelo' ? 'accent' : 'primary'" selected>
+                    {{ group.type }}
+                  </mat-chip-option>
+                </mat-chip-listbox>
+                <mat-chip class="property-count">{{ group.entities.length }} {{ group.entities.length === 1 ? 'entidad' : 'entidades' }}</mat-chip>
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+
+            <!-- Group Actions -->
+            <div class="group-actions">
+              <button
+                mat-stroked-button
+                [color]="group.type === 'Metamodelo' ? 'accent' : 'primary'"
+                (click)="executeQueryForGroup(group, $index)"
+                [disabled]="group.isExecuting">
+                @if (group.isExecuting) {
+                  <ng-container>
+                    <mat-spinner diameter="20"></mat-spinner>
+                    <span>Ejecutando...</span>
+                  </ng-container>
+                } @else {
+                  <ng-container>
+                    <mat-icon>play_arrow</mat-icon>
+                    <span>Consultar {{ group.type }}</span>
+                  </ng-container>
+                }
+              </button>
+              <button mat-button color="warn" (click)="removeEntityGroup($index)">
+                <mat-icon>delete</mat-icon>
+                Eliminar {{ group.type }}
+              </button>
+            </div>
+
+            <!-- Sent Config JSON (Expandable) -->
+            @if (group.sentConfigJson) {
+              <mat-expansion-panel class="result-expansion-panel">
+                <mat-expansion-panel-header>
+                  <mat-panel-title>
+                    <mat-icon>send</mat-icon> Configuración Enviada al Orquestador
+                  </mat-panel-title>
+                </mat-expansion-panel-header>
+                <div class="result-actions">
+                  <button mat-button (click)="copyResultToClipboard('group', 'sentConfigJson', $index)">
+                    <mat-icon>content_copy</mat-icon> Copiar
+                  </button>
+                  <button mat-button (click)="closeQueryResult('group', 'sentConfigJson', $index)">
+                    <mat-icon>close</mat-icon> Cerrar
+                  </button>
+                </div>
+                <div class="result-preview"><pre>{{ group.sentConfigJson | json }}</pre></div>
+              </mat-expansion-panel>
+            }
+            
+            <!-- Group Query Result (Expandable) -->
+            @if (group.queryResult; as result) {
+              <mat-expansion-panel class="result-expansion-panel">
+                <mat-expansion-panel-header>
+                  <mat-panel-title>
+                    <mat-icon>check_circle</mat-icon> Resultado de la Consulta
+                  </mat-panel-title>
+                </mat-expansion-panel-header>
+                <div class="result-actions">
+                  <button mat-button (click)="copyResultToClipboard('group', group.name, $index)">
+                    <mat-icon>content_copy</mat-icon> Copiar
+                  </button>
+                  <button mat-button (click)="closeQueryResult('group', group.name, $index)">
+                    <mat-icon>close</mat-icon> Cerrar
+                  </button>
+                </div>
+                <div class="result-preview"><pre>{{ result | json }}</pre></div>
+              </mat-expansion-panel>
+            }
+
+            <!-- Group Query Error (Remains as is, or can be wrapped if preferred) -->
+            @if (group.queryError; as error) {
+              <mat-card class="query-result-card error">
+                <mat-card-header>
+                  <mat-card-title>Error en la Consulta</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <div class="result-actions">
+                    <button mat-button (click)="closeQueryResult('group', group.name, $index)">
+                      <mat-icon>close</mat-icon> Cerrar
+                    </button>
+                  </div>
+                  <div class="error-message">
+                    <p><strong>Error:</strong> {{ error.message }}</p>
+                    @if (error.error) {
+                      <pre>{{ error.error | json }}</pre>
+                    }
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            }
+
+            <!-- Join Conditions (Cruces) -->
+            @if (group.type === 'Metamodelo' && group.entities[0]?.relations?.length) {
+              <div class="inner-entities-list">
+                <h4>Cruces (Joins):</h4>
+                <div class="properties-grid">
+                  @for (rel of group.entities[0].relations; track $index) {
+                    <mat-chip-listbox>
+                       <mat-chip-option selected color="warn">
+                         <mat-icon>link</mat-icon>
+                         <code>{{ rel.fromTable }}.{{ rel.fromColumn }}</code>
+                         <strong class="join-operator">=</strong>
+                         <code>{{ rel.relatedTable }}.{{ rel.toColumn }}</code>
+                       </mat-chip-option>
+                    </mat-chip-listbox>
+                  }
+                </div>
+              </div>
+            }
+
+            <!-- Entities within the Group -->
+            <div class="inner-entities-list">
+              <h4>Entidades en este {{ group.type }}:</h4>
+              @for (entity of group.entities; track entity.name) {
+                <mat-card class="inner-entity-card">
+                  <mat-card-header>
+                    <mat-card-title>
+                      <mat-icon>table_rows</mat-icon> {{ entity.name }}
+                    </mat-card-title>
+                     <mat-card-subtitle>
+                      {{ entity.properties.length }} propiedades
+                      @if(entity.filters.length > 0) {
+                        , {{ entity.filters.length }} filtros
+                      }
+                     </mat-card-subtitle>
+                  </mat-card-header>
+                  <mat-card-content>
+                    @if (entity.properties.length > 0) {
+                      <h5 class="detail-header">Propiedades:</h5>
+                      <div class="properties-grid">
+                        @for (prop of entity.properties; track prop.name) {
+                          <mat-chip>{{ prop.name }} ({{ prop.type }})</mat-chip>
+                        }
+                      </div>
+                    }
+                    @if (entity.filters.length > 0) {
+                      <h5 class="detail-header">Filtros:</h5>
+                      <div class="filters-grid">
+                        @for (filter of entity.filters; track filter.name) {
+                          <mat-chip>{{ filter.name }} {{ filter.operator }} {{ filter.value }}</mat-chip>
+                        }
+                      </div>
+                    }
+                  </mat-card-content>
+                </mat-card>
+              }
+            </div>
+
+          </mat-expansion-panel>
+        }
+      </div>
+    }
+
+    <!-- Orchestrator Query Section will be moved inside each entity -->
+
+    <!-- Dynamic Mode -->
+    @if (entryMode() === 'dynamic' && availableOrigins().length > 0) {
+      <mat-card class="dynamic-section" [class.disabled-section]="!canCreateNewGroup()">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>cloud_sync</mat-icon> Selección Dinámica de Tablas
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <!-- Cascade Warning Message -->
+          @if (!canCreateNewGroup()) {
+            <mat-card class="cascade-warning-card">
+              <mat-card-content>
+                <mat-icon color="warn">lock</mat-icon>
+                <div class="warning-content">
+                  <h4>Flujo en Cascada Activo</h4>
+                  <p>Debes ejecutar y obtener resultados del último grupo antes de crear uno nuevo.</p>
+                  <p class="hint">Ejecuta la consulta del grupo "{{ entityGroups()[entityGroups().length - 1]?.name }}" para continuar.</p>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          }
+          <!-- Step 1: Select Origin -->
+          <div class="step-section">
+            <h3>1. Seleccionar Origen de Datos</h3>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Origen</mat-label>
+              <mat-select [(value)]="selectedOrigin" (selectionChange)="onOriginSelected($event.value)" [disabled]="!canCreateNewGroup()">
+                @for (origin of availableOrigins(); track $index) {
+                  <mat-option [value]="origin">
+                    {{ origin.repository }} ({{ origin.adapter }}) - {{ origin.servidor }}
+                  </mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+
+          <!-- Step 2: Select Table -->
+          @if (selectedOrigin()) {
+            <div class="step-section">
+              <h3>2. Seleccionar Tabla/Colección</h3>
+              @if (loadingTables()) {
+                <div class="loading-spinner">
+                  <mat-spinner diameter="40"></mat-spinner>
+                  <p>Cargando tablas...</p>
+                </div>
+              } @else {
+                @if (availableTables().length > 0) {
+                  <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Tabla</mat-label>
+                    <input matInput
+                           [(ngModel)]="tableSearchText"
+                           [matAutocomplete]="autoTable"
+                           placeholder="Escribe o selecciona una tabla..."
+                           [disabled]="!canCreateNewGroup()">
+                    <mat-icon matSuffix>arrow_drop_down</mat-icon>
+                    <mat-autocomplete #autoTable="matAutocomplete" (optionSelected)="onTableSelected($event.option.value)">
+                      @for (table of filteredTables(); track table) {
+                        <mat-option [value]="table">{{ table }}</mat-option>
+                      }
+                    </mat-autocomplete>
+                    <mat-hint>{{ filteredTables().length }} de {{ availableTables().length }} tablas</mat-hint>
+                  </mat-form-field>
+                } @else {
+                  <mat-card class="info-card">
+                    <mat-card-content>
+                      <mat-icon>info</mat-icon>
+                      <p>No se encontraron tablas en este origen.</p>
+                    </mat-card-content>
+                  </mat-card>
+                }
+              }
+            </div>
+          }
+
+          <!-- Step 3: View Columns and Relations -->
+          @if (selectedTable()) {
+            <div class="step-section">
+              <h3>3. Columnas de "{{ selectedTable() }}"</h3>
+
+              <!-- Columns Section -->
+              <mat-card class="metadata-card">
+                <mat-card-header>
+                  <mat-card-title>
+                    <mat-icon>view_column</mat-icon>
+                    Columnas ({{ tableColumns().length }})
+                  </mat-card-title>
+                  <mat-card-subtitle>
+                    Seleccionadas: {{ getSelectedColumnsCount() }} / {{ tableColumns().length }}
+                  </mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content>
+                  @if (loadingColumns()) {
+                    <div class="loading-spinner">
+                      <mat-spinner diameter="40"></mat-spinner>
+                      <p>Cargando columnas...</p>
+                    </div>
+                  } @else if (tableColumns().length > 0) {
+                    <!-- Search input for columns -->
+                    <mat-form-field appearance="outline" class="full-width search-field">
+                      <mat-label>Buscar Columna</mat-label>
+                      <input matInput
+                             [(ngModel)]="columnSearchText"
+                             placeholder="Escribe para filtrar columnas..."
+                             [disabled]="!canCreateNewGroup()">
+                      <mat-icon matSuffix>search</mat-icon>
+                    </mat-form-field>
+
+                    <div class="columns-actions">
+                      <button mat-button (click)="selectAllColumns()" [disabled]="!canCreateNewGroup()">
+                        <mat-icon>check_box</mat-icon> Seleccionar Todas
+                      </button>
+                      <button mat-button (click)="deselectAllColumns()" [disabled]="!canCreateNewGroup()">
+                        <mat-icon>check_box_outline_blank</mat-icon> Deseleccionar Todas
+                      </button>
+                      <span class="column-count-badge">
+                        Mostrando {{ filteredColumns().length }} de {{ tableColumns().length }}
+                      </span>
+                    </div>
+                    <div class="columns-grid">
+                      @for (column of filteredColumns(); track column.columnName) {
+                        <mat-card class="column-card" [class.selected]="column.selected" [class.primary-key]="column.isPrimaryKey">
+                          <mat-card-content>
+                            <mat-checkbox
+                              [checked]="column.selected"
+                              (change)="toggleColumnSelection(column)"
+                              [disabled]="!canCreateNewGroup()">
+                              <div class="column-info">
+                                <strong>{{ column.columnName }}</strong>
+                                @if (column.isPrimaryKey) {
+                                  <mat-icon class="pk-badge" color="accent">key</mat-icon>
+                                }
+                                <div class="column-details">
+                                  <code>{{ column.dataType }}</code>
+                                  @if (column.maxLength) {
+                                    <span>({{ column.maxLength }})</span>
+                                  }
+                                  @if (!column.isNullable) {
+                                    <span class="not-null">NOT NULL</span>
+                                  }
+                                </div>
+                              </div>
+                            </mat-checkbox>
+                          </mat-card-content>
+                        </mat-card>
+                      }
+                    </div>
+                  } @else {
+                    <p class="no-data">No se encontraron columnas</p>
+                  }
+                </mat-card-content>
+              </mat-card>
+
+              <!-- Filters Section -->
+              <mat-card class="filters-card-new">
+                <mat-card-header>
+                  <mat-card-title>
+                    <mat-icon>tune</mat-icon>
+                    Filtros
+                  </mat-card-title>
+                  <mat-card-subtitle>
+                    Opcional: Filtra los datos de "{{ selectedTable() }}" antes de extraerlos
+                  </mat-card-subtitle>
+                </mat-card-header>
+                <mat-card-content>
+                  <!-- Current Filters -->
+                  @if (currentEntityFilters().length > 0) {
+                    <div class="current-filters-new">
+                      <div class="filters-header">
+                        <mat-icon>done_all</mat-icon>
+                        <span>Filtros Activos ({{ currentEntityFilters().length }})</span>
+                      </div>
+                      <div class="filters-chips">
+                        @for (filter of currentEntityFilters(); track $index) {
+                          <mat-chip class="filter-chip-new">
+                            <span class="filter-field">{{ filter.name }}</span>
+                            <span class="filter-operator">{{ filter.operator }}</span>
+                            <span class="filter-value">{{ filter.value }}</span>
+                            <button mat-icon-button
+                                    (click)="removeFilterFromDynamicEntity($index)"
+                                    matTooltip="Eliminar"
+                                    class="remove-btn">
+                              <mat-icon>close</mat-icon>
+                            </button>
+                          </mat-chip>
+                        }
+                      </div>
+                    </div>
+                  }
+
+                  <!-- Add Filters Tabs -->
+                  <mat-tab-group class="filters-tabs" [@.disabled]="true">
+                    <!-- Manual Filter Tab -->
+                    <mat-tab>
+                      <ng-template mat-tab-label>
+                        <mat-icon>edit</mat-icon>
+                        Filtro Manual
+                      </ng-template>
+                      <div class="tab-content">
+                        <div class="filter-form-grid">
+                          <mat-form-field appearance="outline">
+                            <mat-label>Columna</mat-label>
+                            <input matInput
+                                   [ngModel]="newFilterName()"
+                                   (ngModelChange)="newFilterName.set($event)"
+                                   [matAutocomplete]="autoColumn"
+                                   placeholder="Escribe o selecciona...">
+                            <mat-icon matSuffix>arrow_drop_down</mat-icon>
+                            <mat-autocomplete #autoColumn="matAutocomplete">
+                              @for (column of filteredColumnsForFilter(); track column.columnName) {
+                                <mat-option [value]="column.columnName">
+                                  <div class="column-option-compact">
+                                    <span class="col-name">{{ column.columnName }}</span>
+                                    @if (column.isPrimaryKey) {
+                                      <mat-icon class="pk-icon-tiny">key</mat-icon>
+                                    }
+                                  </div>
+                                </mat-option>
+                              }
+                            </mat-autocomplete>
+                            <mat-hint>{{ filteredColumnsForFilter().length }} de {{ tableColumns().length }}</mat-hint>
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Operador</mat-label>
+                            <mat-select [(ngModel)]="newFilterOperator">
+                              @for (op of operators; track op) {
+                                <mat-option [value]="op">{{ op }}</mat-option>
+                              }
+                            </mat-select>
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline">
+                            <mat-label>Valor</mat-label>
+                            <input matInput
+                                   [(ngModel)]="newFilterValue"
+                                   placeholder="Ejemplo: K003F001297429">
+                          </mat-form-field>
+
+                          <button mat-raised-button
+                                  color="primary"
+                                  (click)="addFilterToDynamicEntity()"
+                                  [disabled]="!newFilterName() || !newFilterValue || !canCreateNewGroup()"
+                                  class="add-filter-btn">
+                            <mat-icon>add</mat-icon>
+                            Agregar
+                          </button>
+                        </div>
+                      </div>
+                    </mat-tab>
+
+                    <!-- Cascade Filter Tab -->
+                    @if (getGroupsWithResults().length > 0) {
+                      <mat-tab>
+                        <ng-template mat-tab-label>
+                          <mat-icon>account_tree</mat-icon>
+                          Filtro en Cascada
+                        </ng-template>
+                        <div class="tab-content">
+                      <div class="cascade-filter-inputs">
+                        <mat-form-field appearance="outline" class="cascade-field">
+                          <mat-label>Grupo con Resultados</mat-label>
+                          <mat-select [value]="selectedPreviousGroup()"
+                                      (selectionChange)="onPreviousGroupSelected($event.value)">
+                            @for (group of getGroupsWithResults(); track group.name) {
+                              <mat-option [value]="group">
+                                <mat-icon>{{ group.type === 'Metamodelo' ? 'hub' : 'table_chart' }}</mat-icon>
+                                {{ group.name }}
+                              </mat-option>
+                            }
+                          </mat-select>
+                          <mat-hint>Selecciona el grupo del cual tomar valores</mat-hint>
+                        </mat-form-field>
+
+                        @if (selectedPreviousGroup() && availableFieldsFromPreviousResult().length > 0) {
+                          <mat-form-field appearance="outline" class="cascade-field">
+                            <mat-label>Campo del Resultado</mat-label>
+                            <mat-select [(ngModel)]="selectedPreviousField">
+                              @for (field of availableFieldsFromPreviousResult(); track field) {
+                                <mat-option [value]="field">{{ field }}</mat-option>
+                              }
+                            </mat-select>
+                            <mat-hint>Campo del que se extraerán los valores</mat-hint>
+                          </mat-form-field>
+
+                          <mat-form-field appearance="outline" class="cascade-field">
+                            <mat-label>Aplicar a Columna</mat-label>
+                            <mat-select [(ngModel)]="targetFilterColumn">
+                              @for (column of tableColumns(); track column.columnName) {
+                                <mat-option [value]="column.columnName">
+                                  <div class="column-option">
+                                    <strong>{{ column.columnName }}</strong>
+                                    @if (column.isPrimaryKey) {
+                                      <mat-icon class="pk-icon-small">key</mat-icon>
+                                    }
+                                    <code class="type-badge">{{ column.dataType }}</code>
+                                  </div>
+                                </mat-option>
+                              }
+                            </mat-select>
+                            <mat-hint>Columna de esta tabla donde se aplicará el filtro</mat-hint>
+                          </mat-form-field>
+
+                          <button mat-raised-button
+                                  color="primary"
+                                  (click)="addFilterFromPreviousResult()"
+                                  [disabled]="!selectedPreviousGroup() || !selectedPreviousField() || !targetFilterColumn() || !canCreateNewGroup()">
+                            <mat-icon>add</mat-icon>
+                            Agregar Filtro en Cascada
+                          </button>
+                        }
+                      </div>
+
+                          <div class="cascade-hint-new">
+                            <mat-icon>info_outline</mat-icon>
+                            <p>Los filtros en cascada toman <strong>todos los valores</strong> del campo seleccionado y crean un filtro automático.</p>
+                          </div>
+                        </div>
+                      </mat-tab>
+                    }
+                  </mat-tab-group>
+                </mat-card-content>
+              </mat-card>
+
+              <!-- Add Entity Button -->
+              <div class="add-entity-section">
+                <p class="summary-text">
+                  <mat-icon>info</mat-icon>
+                  Se creará <strong>1 entidad</strong> en un nuevo <strong>Modelo</strong>.
+                </p>
+                <button mat-raised-button
+                        color="primary"
+                        (click)="addEntityFromMetadata()"
+                        [disabled]="getSelectedColumnsCount() === 0 || !canCreateNewGroup()">
+                  <mat-icon>add</mat-icon> Agregar Modelo
+                </button>
+              </div>
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Flexible Mode Removed -->
+
+    <!-- Manual Mode -->
+    @if (entryMode() === 'manual') {
+      <mat-card class="manual-section">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>edit</mat-icon> Entrada Manual
+          </mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Nombre de la Entidad</mat-label>
+            <input matInput
+                   [(ngModel)]="newEntity().name"
+                   placeholder="ej: ventas, productos, clientes"
+                   required>
+          </mat-form-field>
+
+          <div class="properties-section">
+            <h4>Propiedades (Opcional)</h4>
+            <div class="property-chips">
+              @for (prop of newEntity().properties; track $index) {
+                <mat-chip (removed)="removeProperty($index)">
+                  {{ prop.name }} ({{ prop.type }})
+                  <button matChipRemove><mat-icon>cancel</mat-icon></button>
+                </mat-chip>
+              }
+            </div>
+            <div class="property-inputs">
+              <mat-form-field appearance="outline">
+                <mat-label>Nombre</mat-label>
+                <input matInput [(ngModel)]="newPropertyName" placeholder="id">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Tipo</mat-label>
+                <mat-select [(ngModel)]="newPropertyType">
+                  @for (type of dataTypes; track type) {
+                    <mat-option [value]="type">{{ type }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button mat-button color="accent" (click)="addProperty()"
+                      [disabled]="!newPropertyName">Agregar Propiedad</button>
+            </div>
+          </div>
+
+          <div class="filter-section">
+            <h4>Filtros (Opcional)</h4>
+            <div class="filter-chips">
+              @for (filter of newEntity().filters; track $index) {
+                <mat-chip (removed)="removeFilter($index)">
+                  {{ filter.name }} {{ filter.operator }} {{ filter.value }}
+                  <button matChipRemove><mat-icon>cancel</mat-icon></button>
+                </mat-chip>
+              }
+            </div>
+            <div class="filter-inputs">
+              <mat-form-field appearance="outline">
+                <mat-label>Nombre del Filtro</mat-label>
+                <input matInput [(ngModel)]="newFilterName" placeholder="action">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Operador</mat-label>
+                <mat-select [(ngModel)]="newFilterOperator">
+                  @for (op of operators; track op) {
+                    <mat-option [value]="op">{{ op }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Valor del Filtro</mat-label>
+                <input matInput [(ngModel)]="newFilterValue" placeholder="sales">
+              </mat-form-field>
+              <button mat-button color="accent" (click)="addFilter()"
+                      [disabled]="!newFilterName || !newFilterValue">Agregar Filtro</button>
+            </div>
+          </div>
+
+          <button mat-raised-button color="primary" (click)="addEntity()"
+                  [disabled]="!newEntity().name">
+            <mat-icon>add</mat-icon> Agregar Entidad
+          </button>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Orchestrator Query Section Moved Up -->
+  </mat-card-content>
+</mat-card>

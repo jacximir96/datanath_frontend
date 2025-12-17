@@ -1,0 +1,73 @@
+<div class="login-container">
+  <div class="login-card-wrapper">
+    <mat-card class="login-card">
+      <mat-card-header>
+        <div class="login-header">
+          <mat-icon class="login-icon">settings</mat-icon>
+          <div class="login-title">
+            <h1>DataNath</h1>
+            <p>Configuration Manager</p>
+          </div>
+        </div>
+      </mat-card-header>
+
+      <mat-card-content>
+        <form (ngSubmit)="onSubmit()" #loginForm="ngForm">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Usuario</mat-label>
+            <input matInput
+                   [(ngModel)]="username"
+                   name="username"
+                   placeholder="Ingresa tu usuario"
+                   [disabled]="isLoading()"
+                   required>
+            <mat-icon matPrefix>person</mat-icon>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Contraseña</mat-label>
+            <input matInput
+                   [type]="hidePassword() ? 'password' : 'text'"
+                   [(ngModel)]="password"
+                   name="password"
+                   placeholder="Ingresa tu contraseña"
+                   [disabled]="isLoading()"
+                   required>
+            <mat-icon matPrefix>lock</mat-icon>
+            <button mat-icon-button
+                    matSuffix
+                    type="button"
+                    (click)="togglePasswordVisibility()"
+                    [disabled]="isLoading()">
+              <mat-icon>{{ hidePassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+            </button>
+          </mat-form-field>
+
+          @if (errorMessage()) {
+            <div class="error-message">
+              <mat-icon>error_outline</mat-icon>
+              <span>{{ errorMessage() }}</span>
+            </div>
+          }
+
+          <button mat-raised-button
+                  color="primary"
+                  type="submit"
+                  class="login-button"
+                  [disabled]="isLoading() || !username.trim() || !password.trim()">
+            @if (isLoading()) {
+              <mat-spinner diameter="20"></mat-spinner>
+              <span>Iniciando sesión...</span>
+            } @else {
+              <span>Iniciar Sesión</span>
+            }
+          </button>
+        </form>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="login-footer">
+      <p>DataNath Configuration Manager</p>
+    </div>
+  </div>
+</div>

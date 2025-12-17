@@ -1,0 +1,162 @@
+.container {
+  padding: 20px;
+}
+
+.workspace {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.palette-container {
+  flex: 1;
+  max-width: 300px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px;
+  background-color: #fdfdfd;
+}
+
+.palette-container h3 {
+  margin: 8px 8px 16px 8px;
+  font-weight: 500;
+}
+
+.origin-palette {
+  min-height: 400px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.origin-card-palette {
+  cursor: move;
+  margin: 8px;
+}
+
+.scenarios-container {
+  flex: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.scenarios-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.scenario-card {
+  border: 1px solid #c5cae9;
+  border-radius: 8px;
+  padding: 16px;
+  background-color: #f8f9fa;
+}
+
+.scenario-card.readonly-scenario {
+  background-color: #f5f5f5;
+  border-color: #e0e0e0;
+}
+
+.scenario-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: -8px -8px 16px -8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #c5cae9;
+  background-color: #e8eaf6;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.readonly-scenario .scenario-header {
+  background-color: #eeeeee;
+  border-bottom-color: #e0e0e0;
+}
+
+.scenario-title {
+  font-size: 1.2em;
+  font-weight: 500;
+  color: #3f51b5;
+  margin: 0;
+}
+
+.readonly-scenario .scenario-title {
+  color: #424242;
+}
+
+.entity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.entity-assignment-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px;
+  border-radius: 4px;
+  background-color: #fff;
+}
+
+.entity-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.drop-box {
+  flex: 2;
+  min-height: 60px;
+  border: 2px dashed #ccc;
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: background-color 0.2s ease;
+  padding: 4px;
+}
+
+.readonly-drop-box {
+  background-color: #f0f0f0;
+  border-style: solid;
+}
+
+.cdk-drop-list-receiving .drop-box:not(.readonly-drop-box) {
+  background-color: #e8f0fe;
+  border-color: #3f51b5;
+}
+
+.placeholder-text {
+  color: #999;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.origin-card-assigned {
+  padding: 8px 12px;
+  font-size: 0.9em;
+  text-align: center;
+  width: 100%;
+}
+
+.cdk-drag-preview {
+  box-sizing: border-box;
+  border-radius: 4px;
+  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+              0 8px 10px 1px rgba(0, 0, 0, 0.14),
+              0 3px 14px 2px rgba(0, 0, 0, 0.12);
+}
+
+mat-card-content {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+mat-form-field {
+  width: 100%;
+}

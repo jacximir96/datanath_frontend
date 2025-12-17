@@ -1,0 +1,380 @@
+<div class="json-builder-container">
+  <!-- Left Sidebar: Available Columns -->
+  <mat-card class="columns-sidebar">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>table_chart</mat-icon>
+        Columnas Disponibles
+      </mat-card-title>
+      <mat-card-subtitle>
+        Arrastra o haz click para agregar
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+
+      @if (columnsByTable.length === 0) {
+        <p class="no-columns">No hay columnas disponibles. Primero configura las Entities.</p>
+      } @else {
+        @for (group of columnsByTable; track group.tableName) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                <mat-icon>table_view</mat-icon>
+                <strong>{{ group.tableName }}</strong>
+                <mat-chip class="column-count">{{ group.columns.length }}</mat-chip>
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+            <mat-list>
+              @for (column of group.columns; track column) {
+                <mat-list-item
+                  draggable="true"
+                  (dragstart)="onDragStart($event, group.tableName, column)"
+                  (dragend)="onDragEnd($event)"
+                  (click)="addColumnField(group.tableName, column)"
+                  [class.added]="isColumnAdded(group.tableName, column)"
+                  class="column-item draggable-column">
+                  <mat-icon matListItemIcon>
+                    drag_indicator
+                  </mat-icon>
+                  <div matListItemTitle class="column-title">
+                    <span>{{ column }}</span>
+                    @if (getColumnBadge(group.tableName, column); as badge) {
+                      <mat-chip class="array-badge">
+                        <mat-icon>data_array</mat-icon>
+                        {{ badge.text }}
+                      </mat-chip>
+                    }
+                  </div>
+                  @if (isColumnAdded(group.tableName, column)) {
+                    <mat-icon class="added-icon">check_circle</mat-icon>
+                  }
+                </mat-list-item>
+              }
+            </mat-list>
+          </mat-expansion-panel>
+        }
+      }
+
+      <mat-divider style="margin: 16px 0;"></mat-divider>
+
+      <button mat-raised-button color="accent" (click)="addCustomField()" class="full-width">
+        <mat-icon>edit</mat-icon>
+        Agregar Campo Personalizado
+      </button>
+      <p class="helper-text">
+        <mat-icon>info</mat-icon>
+        Para expresiones, valores fijos o null
+      </p>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Right Panel: JSON Structure Builder -->
+  <div class="builder-panel">
+    <mat-card class="structure-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>code</mat-icon>
+          Estructura JSON
+        </mat-card-title>
+        <mat-card-subtitle>
+          Edita nombres y valores
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <!-- Quick Add Buttons - Always visible -->
+        <div class="quick-add-buttons-top">
+          <button mat-raised-button
+                  color="primary"
+                  (click)="addNestedObject()"
+                  matTooltip="Crear un objeto vacío para agrupar campos">
+            <mat-icon>data_object</mat-icon>
+            Objeto {{ '{}' }}
+          </button>
+          <button mat-raised-button
+                  color="accent"
+                  (click)="addNestedArray()"
+                  matTooltip="Crear un array vacío para listas">
+            <mat-icon>data_array</mat-icon>
+            Array []
+          </button>
+        </div>
+
+        @if (rootFields().length === 0) {
+          <div class="empty-state drop-zone-root"
+               [class.drag-over]="dragOverIndex === -1"
+               (dragover)="onDragOverRoot($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDropRoot($event)">
+            <mat-icon>arrow_back</mat-icon>
+            <p>Arrastra columnas aquí o haz click en ellas</p>
+            <p class="hint-text">Los botones de arriba crean objetos/arrays para estructuras anidadas</p>
+          </div>
+        } @else {
+          <!-- Drop zone hint at the top -->
+          <div class="root-drop-zone"
+               [class.drag-over]="dragOverIndex === -1"
+               (dragover)="onDragOverRoot($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDropRoot($event)">
+            <mat-icon>add_circle_outline</mat-icon>
+            <span>Arrastra columnas aquí para agregar al nivel raíz</span>
+          </div>
+
+          <div class="fields-list">
+            @for (field of rootFields(); track fieldIdx; let fieldIdx = $index) {
+              <mat-card class="field-card draggable-field"
+                        draggable="true"
+                        [class.is-column]="field.type === 'column'"
+                        [class.is-expression]="field.type === 'expression'"
+                        [class.is-object]="field.type === 'object'"
+                        [class.is-array]="field.type === 'array'"
+                        [attr.data-container-name]="field.key || 'sin nombre'"
+                        [class.drag-over-column]="dragOverIndex === fieldIdx && dragOverChildIndex === null && draggedColumn && !draggedFieldIndex"
+                        [class.drag-over-reorder]="dragOverIndex === fieldIdx && dragOverChildIndex === null && draggedFieldIndex !== null"
+                        (dragstart)="onFieldDragStart($event, fieldIdx)"
+                        (dragend)="onFieldDragEnd($event)"
+                        (dragover)="onFieldDragOver($event, fieldIdx)"
+                        (dragleave)="onDragLeave($event)"
+                        (drop)="onFieldDrop($event, fieldIdx)">
+                <mat-card-content>
+                  <div class="field-row">
+                    <!-- Drag Handle -->
+                    <mat-icon class="drag-handle" matTooltip="Arrastra para reordenar">drag_indicator</mat-icon>
+
+                    <!-- Type Indicator -->
+                    <mat-chip class="type-chip" [class.column-chip]="field.type === 'column'" [class.expression-chip]="field.type === 'expression'" [class.object-chip]="field.type === 'object'" [class.array-chip]="field.type === 'array'">
+                      @if (field.type === 'column') {
+                        <mat-icon>table_chart</mat-icon> Col
+                      } @else if (field.type === 'expression') {
+                        <mat-icon>functions</mat-icon> Expr
+                      } @else if (field.type === 'object') {
+                        <mat-icon>data_object</mat-icon> {{ '{}'  }}
+                      } @else if (field.type === 'array') {
+                        <mat-icon>data_array</mat-icon> []
+                      } @else if (field.type === 'null') {
+                        <mat-icon>block</mat-icon> Null
+                      } @else {
+                        <mat-icon>edit</mat-icon> Fijo
+                      }
+                    </mat-chip>
+
+                    <!-- Key Input -->
+                    <mat-form-field appearance="outline" class="field-key">
+                      <mat-label>Nombre</mat-label>
+                      <input matInput
+                             [value]="field.key"
+                             (change)="updateFieldKey(fieldIdx, $any($event.target).value)"
+                             placeholder="campo">
+                    </mat-form-field>
+
+                    <!-- Value Input (only for non-container types) -->
+                    @if (field.type !== 'object' && field.type !== 'array') {
+                      <mat-form-field appearance="outline" class="field-value">
+                        <mat-label>Valor</mat-label>
+                        <input matInput
+                               [value]="field.value"
+                               (change)="updateFieldValue(fieldIdx, $any($event.target).value)"
+                               [readonly]="field.type === 'column'"
+                               [placeholder]="field.type === 'expression' ? 'expr:...' : 'Valor'">
+                        @if (field.originalColumn) {
+                          <mat-hint>{{ field.originalColumn }}</mat-hint>
+                        }
+                      </mat-form-field>
+                    }
+
+                    <!-- Actions for object/array -->
+                    @if (field.type === 'object' || field.type === 'array') {
+                      <div class="nested-actions">
+                        <button mat-icon-button
+                                color="primary"
+                                (click)="addNestedObject(fieldIdx); $event.stopPropagation()"
+                                matTooltip="Crear un objeto DENTRO de este contenedor">
+                          <mat-icon>add_box</mat-icon>
+                        </button>
+                        <button mat-icon-button
+                                color="accent"
+                                (click)="addNestedArray(fieldIdx); $event.stopPropagation()"
+                                matTooltip="Crear un array DENTRO de este contenedor">
+                          <mat-icon>playlist_add</mat-icon>
+                        </button>
+                      </div>
+                    }
+
+                    <!-- Remove Button -->
+                    <button mat-icon-button color="warn" (click)="removeField(fieldIdx)" matTooltip="Eliminar">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+
+                  <!-- Children (nested fields) -->
+                  @if ((field.type === 'object' || field.type === 'array') && field.children && field.children.length > 0) {
+                    <div class="nested-fields">
+                      <p class="nested-label">
+                        <mat-icon>subdirectory_arrow_right</mat-icon>
+                        Campos dentro de "{{ field.key }}"
+                      </p>
+                      @for (childField of field.children; track childIdx; let childIdx = $index) {
+                        <mat-card class="nested-field-card draggable-field"
+                                  draggable="true"
+                                  [class.is-column]="childField.type === 'column'"
+                                  [class.is-expression]="childField.type === 'expression'"
+                                  [class.is-object]="childField.type === 'object'"
+                                  [class.is-array]="childField.type === 'array'"
+                                  [attr.data-container-name]="childField.key || 'sin nombre'"
+                                  [class.drag-over-column]="getPathDragOverClass([fieldIdx, childIdx]) === 'drag-over-column'"
+                                  [class.drag-over-reorder]="getPathDragOverClass([fieldIdx, childIdx]) === 'drag-over-reorder'"
+                                  (dragstart)="onFieldDragStartByPath($event, [fieldIdx, childIdx])"
+                                  (dragend)="onFieldDragEndByPath($event)"
+                                  (dragover)="onFieldDragOverByPath($event, [fieldIdx, childIdx])"
+                                  (drop)="onFieldDropByPath($event, [fieldIdx, childIdx])"
+                                  (dragleave)="onDragLeave($event)">
+                          <mat-card-content>
+                            <div class="field-row">
+                              <!-- Drag Handle for Reordering -->
+                              <mat-icon class="drag-handle" matTooltip="Arrastra para reordenar">drag_indicator</mat-icon>
+
+                              <!-- Type Indicator -->
+                              <mat-chip class="type-chip" [class.column-chip]="childField.type === 'column'" [class.expression-chip]="childField.type === 'expression'" [class.object-chip]="childField.type === 'object'" [class.array-chip]="childField.type === 'array'">
+                                @if (childField.type === 'column') {
+                                  <mat-icon>table_chart</mat-icon> Col
+                                } @else if (childField.type === 'expression') {
+                                  <mat-icon>functions</mat-icon> Expr
+                                } @else if (childField.type === 'object') {
+                                  <mat-icon>data_object</mat-icon> {{ '{}'  }}
+                                } @else if (childField.type === 'array') {
+                                  <mat-icon>data_array</mat-icon> []
+                                } @else if (childField.type === 'null') {
+                                  <mat-icon>block</mat-icon> Null
+                                } @else {
+                                  <mat-icon>edit</mat-icon> Fijo
+                                }
+                              </mat-chip>
+
+                              <!-- Key Input -->
+                              <mat-form-field appearance="outline" class="field-key">
+                                <mat-label>Nombre</mat-label>
+                                <input matInput
+                                       [value]="childField.key"
+                                       (change)="updateNestedFieldKey(fieldIdx, childIdx, $any($event.target).value)"
+                                       placeholder="campo">
+                              </mat-form-field>
+
+                              <!-- Value Input (only for non-container types) -->
+                              @if (childField.type !== 'object' && childField.type !== 'array') {
+                                <mat-form-field appearance="outline" class="field-value">
+                                  <mat-label>Valor</mat-label>
+                                  <input matInput
+                                         [value]="childField.value"
+                                         (change)="updateNestedFieldValue(fieldIdx, childIdx, $any($event.target).value)"
+                                         [readonly]="childField.type === 'column'"
+                                         [placeholder]="childField.type === 'expression' ? 'expr:...' : 'Valor'">
+                                  @if (childField.originalColumn) {
+                                    <mat-hint>{{ childField.originalColumn }}</mat-hint>
+                                  }
+                                </mat-form-field>
+                              }
+
+                              <!-- Actions for nested object/array -->
+                              @if (childField.type === 'object' || childField.type === 'array') {
+                                <div class="nested-actions">
+                                  <button mat-icon-button color="primary" (click)="addNestedObject(fieldIdx, childIdx); $event.stopPropagation()" matTooltip="Agregar objeto hijo">
+                                    <mat-icon>add_box</mat-icon>
+                                  </button>
+                                  <button mat-icon-button color="accent" (click)="addNestedArray(fieldIdx, childIdx); $event.stopPropagation()" matTooltip="Agregar array hijo">
+                                    <mat-icon>playlist_add</mat-icon>
+                                  </button>
+                                </div>
+                              }
+
+                              <!-- Remove Button -->
+                              <button mat-icon-button color="warn" (click)="removeNestedField(fieldIdx, childIdx)" matTooltip="Eliminar">
+                                <mat-icon>delete</mat-icon>
+                              </button>
+                            </div>
+
+                            <!-- Type Switcher for custom fields -->
+                            @if (childField.type !== 'column' && childField.type !== 'object' && childField.type !== 'array') {
+                              <div class="type-switcher">
+                                <button mat-button [class.active]="childField.type === 'static'" (click)="updateNestedFieldType(fieldIdx, childIdx, 'static')">
+                                  Fijo
+                                </button>
+                                <button mat-button [class.active]="childField.type === 'expression'" (click)="updateNestedFieldType(fieldIdx, childIdx, 'expression')">
+                                  Expr
+                                </button>
+                                <button mat-button [class.active]="childField.type === 'null'" (click)="updateNestedFieldType(fieldIdx, childIdx, 'null')">
+                                  Null
+                                </button>
+                              </div>
+                            }
+
+                            <!-- RECURSIVELY render all deeper children (INFINITE DEPTH) using recursive component -->
+                            @if ((childField.type === 'object' || childField.type === 'array') && childField.children && childField.children.length > 0) {
+                              <div class="deeper-nested-fields">
+                                <p class="deeper-nested-label">
+                                  <mat-icon>subdirectory_arrow_right</mat-icon>
+                                  Campos dentro de "{{ childField.key }}"
+                                </p>
+                                @for (deepField of childField.children; track deepIdx; let deepIdx = $index) {
+                                  <app-json-field-item
+                                    [field]="deepField"
+                                    [path]="[fieldIdx, childIdx, deepIdx]"
+                                    [dragOverPath]="dragOverPath"
+                                    [draggedColumn]="draggedColumn"
+                                    [draggedFieldPath]="draggedFieldPath"
+                                    (action)="handleFieldAction($event)">
+                                  </app-json-field-item>
+                                }
+                              </div>
+                            }
+                          </mat-card-content>
+                        </mat-card>
+                      }
+                    </div>
+                  }
+
+                  <!-- Type Switcher for custom fields -->
+                  @if (field.type !== 'column' && field.type !== 'object' && field.type !== 'array') {
+                    <div class="type-switcher">
+                      <button mat-button [class.active]="field.type === 'static'" (click)="updateFieldType(fieldIdx, 'static')">
+                        Fijo
+                      </button>
+                      <button mat-button [class.active]="field.type === 'expression'" (click)="updateFieldType(fieldIdx, 'expression')">
+                        Expr
+                      </button>
+                      <button mat-button [class.active]="field.type === 'null'" (click)="updateFieldType(fieldIdx, 'null')">
+                        Null
+                      </button>
+                    </div>
+                  }
+                </mat-card-content>
+              </mat-card>
+            }
+          </div>
+
+          <!-- Drop zone at the bottom -->
+          <div class="root-drop-zone bottom-drop-zone"
+               [class.drag-over]="dragOverIndex === -1"
+               (dragover)="onDragOverRoot($event)"
+               (dragleave)="onDragLeave($event)"
+               (drop)="onDropRoot($event)">
+            <mat-icon>add_circle_outline</mat-icon>
+            <span>Suelta columnas aquí para agregar al nivel raíz</span>
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- JSON Preview -->
+    <mat-card class="preview-card">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>visibility</mat-icon>
+          Vista Previa JSON
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <pre>{{ jsonPreview() }}</pre>
+      </mat-card-content>
+    </mat-card>
+  </div>
+</div>

@@ -1,0 +1,35 @@
+<div class="dialog-container">
+  <div class="dialog-header">
+    <mat-icon class="success-icon">bookmark_add</mat-icon>
+    <h2 mat-dialog-title>Guardar Configuración</h2>
+  </div>
+
+  <mat-dialog-content>
+    <p class="dialog-message">
+      ¡Excelente! Tu configuración se envió correctamente al orquestador.
+    </p>
+    <p class="dialog-submessage">
+      Guárdala para ejecutarla nuevamente con un solo click en el futuro.
+    </p>
+
+    <mat-form-field appearance="outline" class="full-width">
+      <mat-label>Nombre de la configuración</mat-label>
+      <input matInput [(ngModel)]="configName"
+             placeholder="Ej: Config Cliente ABC - Producción"
+             (keyup.enter)="onSave()"
+             autofocus>
+      <mat-icon matPrefix>label</mat-icon>
+    </mat-form-field>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()">
+      <mat-icon>close</mat-icon>
+      No guardar
+    </button>
+    <button mat-raised-button color="primary" (click)="onSave()" [disabled]="!configName.trim()">
+      <mat-icon>save</mat-icon>
+      Guardar
+    </button>
+  </mat-dialog-actions>
+</div>

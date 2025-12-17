@@ -1,0 +1,100 @@
+<div class="summary-container">
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>Resumen de Configuración</mat-card-title>
+      <mat-card-subtitle>Revise y exporte su configuración</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="summary-info">
+        <h3>Detalles de la Configuración</h3>
+        <p><strong>Cliente:</strong> {{ configService.config().client || 'No configurado' }}</p>
+
+        <h4>Grupos de Origen</h4>
+        <mat-accordion>
+          <mat-expansion-panel *ngFor="let group of objectKeys(groupedOrigins)">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                Grupo: {{ group }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+            <mat-list>
+              <mat-list-item *ngFor="let origin of groupedOrigins[group]">
+                {{ origin.repository }} ({{ origin.servidor }})
+              </mat-list-item>
+            </mat-list>
+          </mat-expansion-panel>
+        </mat-accordion>
+
+        <h4>Grupos de Entidades</h4>
+        <mat-accordion>
+          <mat-expansion-panel *ngFor="let group of entityGroups">
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                {{ group.name }}
+              </mat-panel-title>
+            </mat-expansion-panel-header>
+            <mat-list>
+              <mat-list-item *ngFor="let entity of group.entities">
+                {{ entity.name }}
+              </mat-list-item>
+            </mat-list>
+          </mat-expansion-panel>
+        </mat-accordion>
+
+        <p><strong>Transformación:</strong> {{ configService.config().transformation.code || 'No configurado' }}</p>
+      </div>
+
+      <div class="json-preview">
+        <h3>JSON de Salida</h3>
+        <p class="json-note">
+          <mat-icon>info</mat-icon>
+          Nota: Las barras invertidas están escapadas en formato JSON (ej., \\ se convierte en \\\\). Esto es correcto y se restaurará cuando el JSON sea procesado.
+        </p>
+        <pre>{{ jsonOutput }}</pre>
+      </div>
+
+      <div class="actions">
+        <button mat-raised-button color="primary" (click)="copyToClipboard()">
+          <mat-icon>content_copy</mat-icon>
+          Copiar al Portapapeles
+        </button>
+        <button mat-raised-button color="accent" (click)="downloadJSON()">
+          <mat-icon>download</mat-icon>
+          Descargar JSON
+        </button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Orchestrator Section -->
+  <mat-card>
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon>cloud_upload</mat-icon>
+        Enviar al Orquestador
+      </mat-card-title>
+      <mat-card-subtitle>
+        Envíe la configuración al orquestador para su procesamiento
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="send-section">
+        <button mat-raised-button color="accent" (click)="sendToOrchestrator()" [disabled]="isSending">
+          @if (isSending) {
+            <mat-spinner diameter="20"></mat-spinner>
+            <span>Enviando...</span>
+          } @else {
+            <ng-container>
+              <mat-icon>send</mat-icon>
+              <span>Enviar Configuración</span>
+            </ng-container>
+          }
+        </button>
+        <p class="send-note">
+          <mat-icon>info</mat-icon>
+          La configuración será enviada automáticamente al orquestador
+        </p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,145 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Target Configuration</mat-card-title>
+    <mat-card-subtitle>Configure output destination</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    <h3>Connection</h3>
+    <div class="connection-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Server URL</mat-label>
+        <input matInput [value]="target.connection.server"
+               [(ngModel)]="target.connection.server"
+               (input)="updateConnection('server', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Port (Opcional)</mat-label>
+        <input matInput [value]="target.connection.port"
+               [(ngModel)]="target.connection.port"
+               (input)="updateConnection('port', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>User</mat-label>
+        <input matInput [value]="target.connection.user"
+               [(ngModel)]="target.connection.user"
+               (input)="updateConnection('user', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Password</mat-label>
+        <input matInput type="password" [value]="target.connection.password"
+               [(ngModel)]="target.connection.password"
+               (input)="updateConnection('password', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Repository</mat-label>
+        <input matInput [value]="target.connection.repository"
+               [(ngModel)]="target.connection.repository"
+               (input)="updateConnection('repository', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Adapter</mat-label>
+        <input matInput [value]="target.connection.adapter"
+               [(ngModel)]="target.connection.adapter"
+               (input)="updateConnection('adapter', $any($event.target).value)">
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>SAS Token (Optional)</mat-label>
+        <input matInput [value]="target.connection.sasToken || ''"
+               [(ngModel)]="target.connection.sasToken"
+               (input)="updateConnection('sasToken', $any($event.target).value)">
+      </mat-form-field>
+    </div>
+
+    <h3>Target Entities</h3>
+    @if (target.entities.length > 0) {
+      <div class="entities-list">
+        @for (entity of target.entities; track $index) {
+          <mat-card class="entity-card">
+            <mat-card-content>
+              <p><strong>Name:</strong> {{ entity.name }}</p>
+              <p><strong>To Name:</strong> {{ entity.toName }}</p>
+              @if (entity.properties.length > 0) {
+                <p><strong>Properties:</strong></p>
+                <div class="property-chips">
+                  @for (prop of entity.properties; track $index) {
+                    <mat-chip>{{ prop.name }} ({{ prop.type }})</mat-chip>
+                  }
+                </div>
+              }
+              <button mat-button color="warn" (click)="removeTargetEntity($index)">
+                <mat-icon>delete</mat-icon> Remove
+              </button>
+            </mat-card-content>
+          </mat-card>
+        }
+      </div>
+    }
+
+    <div class="add-entity-section">
+      <h4>Add Target Entity</h4>
+      <div class="entity-form-grid">
+        <mat-form-field appearance="outline">
+          <mat-label>Entity Name</mat-label>
+          <input matInput [(ngModel)]="newTargetEntity().name"
+                 #entityNameInput="ngModel"
+                 placeholder="transactions"
+                 required>
+          @if (entityNameInput.invalid && entityNameInput.touched) {
+            <mat-error>El nombre de la entidad es obligatorio</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>To Name</mat-label>
+          <input matInput [(ngModel)]="newTargetEntity().toName"
+                 #toNameInput="ngModel"
+                 placeholder="sales_transactions"
+                 required>
+          @if (toNameInput.invalid && toNameInput.touched) {
+            <mat-error>El nombre destino es obligatorio</mat-error>
+          }
+        </mat-form-field>
+      </div>
+
+      <div class="properties-section">
+        <h4>Properties (Opcional)</h4>
+        <div class="property-chips">
+          @for (prop of newTargetEntity().properties; track $index) {
+            <mat-chip (removed)="removeProperty($index)">
+              {{ prop.name }} ({{ prop.type }})
+              <button matChipRemove><mat-icon>cancel</mat-icon></button>
+            </mat-chip>
+          }
+        </div>
+        <div class="property-inputs">
+          <mat-form-field appearance="outline">
+            <mat-label>Name</mat-label>
+            <input matInput [(ngModel)]="newPropertyName"
+                   placeholder="*">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Type</mat-label>
+            <mat-select [(ngModel)]="newPropertyType">
+              @for (type of dataTypes; track type) {
+                <mat-option [value]="type">{{ type }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <button mat-button color="accent" (click)="addProperty()"
+                  [disabled]="!newPropertyName">Agregar Propiedad</button>
+        </div>
+      </div>
+
+      <button mat-raised-button color="primary" (click)="addTargetEntity()"
+              [disabled]="!isTargetEntityFormValid()">
+        <mat-icon>add</mat-icon> Agregar Entidad
+      </button>
+    </div>
+  </mat-card-content>
+</mat-card>

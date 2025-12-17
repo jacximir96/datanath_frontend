@@ -1,0 +1,79 @@
+<div class="container">
+  <h2>Definir Grupos de Conexión (Escenarios)</h2>
+  <p>El Grupo Principal muestra la configuración actual. Puede crear otros grupos (escenarios) y asignarles diferentes conexiones arrastrando un origen desde la paleta de la izquierda.</p>
+
+  <div class="workspace">
+    <!-- Connections Palette -->
+    <div class="palette-container">
+      <h3>Conexiones Disponibles</h3>
+      <div
+        id="palette"
+        cdkDropList
+        [cdkDropListData]="allOrigins()"
+        [cdkDropListConnectedTo]="getAllDropListIds()"
+        class="origin-palette">
+        <mat-card *ngFor="let origin of allOrigins()" cdkDrag [cdkDragData]="origin" class="origin-card-palette">
+          <mat-card-header>
+            <mat-card-title>{{ origin.repository }}</mat-card-title>
+            <mat-card-subtitle>{{ origin.servidor }}</mat-card-subtitle>
+          </mat-card-header>
+        </mat-card>
+      </div>
+    </div>
+
+    <!-- Scenarios Container -->
+    <div class="scenarios-container">
+      <div class="scenarios-header">
+        <h3>Grupos / Escenarios</h3>
+        <button mat-flat-button color="primary" (click)="addScenario()">
+          <mat-icon>add_circle_outline</mat-icon>
+          Añadir Grupo
+        </button>
+      </div>
+
+      <div *ngFor="let scenario of scenarios()" class="scenario-card" [class.readonly-scenario]="scenario.isReadOnly">
+        <div class="scenario-header">
+          <h4 class="scenario-title">{{ scenario.name }}</h4>
+          <button
+            *ngIf="!scenario.isReadOnly"
+            mat-icon-button
+            color="warn"
+            (click)="deleteScenario(scenario)"
+            matTooltip="Eliminar grupo">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+
+        <div class="entity-list">
+          <div *ngFor="let entity of allEntities()" class="entity-assignment-row">
+            <span class="entity-name">{{ entity.name }}</span>
+            <div cdkDropList
+                 [id]="getDropListId(scenario, entity)"
+                 class="drop-box"
+                 [class.readonly-drop-box]="scenario.isReadOnly"
+                 (cdkDropListDropped)="drop($event, entity, scenario)">
+              
+              <ng-container *ngIf="getOriginForEntityInScenario(entity, scenario) as assignedOrigin; else placeholder">
+                <mat-card class="origin-card-assigned">
+                  {{ assignedOrigin.repository }}
+                </mat-card>
+              </ng-container>
+              <ng-template #placeholder>
+                <div class="placeholder-text">
+                  <ng-container *ngIf="scenario.isReadOnly; else editablePlaceholder">
+                    <span>No Asignado</span>
+                  </ng-container>
+                  <ng-template #editablePlaceholder>
+                    <mat-icon>add</mat-icon>
+                    <span>Asignar Conexión</span>
+                  </ng-template>
+                </div>
+              </ng-template>
+
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

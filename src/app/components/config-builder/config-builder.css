@@ -1,0 +1,39 @@
+.spacer {
+  flex: 1 1 auto;
+}
+
+.container {
+  position: relative;
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.step-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* ================ RESPONSIVE ================ */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .step-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .step-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .container {
+    padding: 12px;
+  }
+}

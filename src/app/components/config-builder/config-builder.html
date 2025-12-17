@@ -1,0 +1,69 @@
+<div class="container">
+  <mat-stepper #stepper>
+    <mat-step label="Cliente">
+      <app-client-step #clientStep></app-client-step>
+      <div class="step-actions">
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary"
+                [disabled]="!clientStep.isValid()">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Orígenes">
+      <app-origins-step #originsStep></app-origins-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary"
+                [disabled]="!originsStep.isValid()">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Entidades">
+      <app-entities-step #entitiesStep></app-entities-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary"
+                [disabled]="!entitiesStep.isValid()">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Transformación">
+      <app-transformation-step></app-transformation-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Destino">
+      <app-target-step #targetStep></app-target-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary"
+                [disabled]="!targetStep.isValid()">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Grupos de Conexión">
+      <app-connection-groups-step #connectionGroupsStep></app-connection-groups-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button matStepperNext color="primary" [disabled]="!connectionGroupsStep.isValid()">Siguiente</button>
+      </div>
+    </mat-step>
+
+    <mat-step label="Resumen">
+      <app-summary-step></app-summary-step>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Atrás</button>
+        <span class="spacer"></span>
+        <button mat-raised-button color="accent" (click)="stepper.reset()">Reiniciar</button>
+      </div>
+    </mat-step>
+  </mat-stepper>
+</div>

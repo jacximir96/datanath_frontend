@@ -1,0 +1,154 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Data Origins</mat-card-title>
+    <mat-card-subtitle>Select a configured client or add origins manually</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    @if (clients.length > 0 && origins.length === 0) {
+      <div class="client-selector">
+        <h3>Cargar Cliente Configurado</h3>
+        <div class="selector-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Seleccionar Cliente</mat-label>
+            <mat-select [(ngModel)]="selectedClientId">
+              @for (client of clients; track client.id) {
+                <mat-option [value]="client.id">
+                  {{ client.name }} ({{ client.stores.length }} tiendas)
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Selecciona un cliente para cargar sus orígenes automáticamente</mat-hint>
+          </mat-form-field>
+          <button mat-raised-button color="primary" (click)="loadClientStores()"
+                  [disabled]="!selectedClientId">
+            <mat-icon>download</mat-icon> Cargar
+          </button>
+        </div>
+        <div class="divider">
+          <span>o</span>
+        </div>
+        <button mat-button color="accent" (click)="toggleManualAdd()">
+          <mat-icon>edit</mat-icon> Agregar Orígenes Manualmente
+        </button>
+      </div>
+    }
+    @if (origins.length > 0) {
+      <mat-accordion>
+        @for (origin of origins; track $index) {
+          <mat-expansion-panel>
+            <mat-expansion-panel-header>
+              <mat-panel-title>
+                {{ origin.servidor }} - {{ origin.repository }}
+              </mat-panel-title>
+              <mat-panel-description>
+                {{ origin.adapter }}
+              </mat-panel-description>
+            </mat-expansion-panel-header>
+            <div class="origin-details">
+              <p><strong>Server:</strong> {{ origin.servidor }}</p>
+              <p><strong>Port:</strong> {{ origin.puerto }}</p>
+              <p><strong>User:</strong> {{ origin.user }}</p>
+              <p><strong>Repository:</strong> {{ origin.repository }}</p>
+              <p><strong>Adapter:</strong> {{ origin.adapter }}</p>
+              <button mat-raised-button color="warn" (click)="removeOrigin($index)">
+                <mat-icon>delete</mat-icon>
+                Remove
+              </button>
+            </div>
+          </mat-expansion-panel>
+        }
+      </mat-accordion>
+    } @else {
+      <p class="no-data">No hay orígenes configurados.
+        @if (clients.length > 0) {
+          Selecciona un cliente arriba o
+        }
+        agrega uno abajo.
+      </p>
+    }
+
+    @if (showManualAdd || origins.length > 0 || clients.length === 0) {
+      <div class="add-origin-section">
+      <h3>Add New Origin</h3>
+      <form #originForm="ngForm" class="origin-form">
+        <mat-form-field appearance="outline">
+          <mat-label>Server</mat-label>
+          <input matInput [(ngModel)]="newOrigin().servidor"
+                 name="servidor"
+                 #serverInput="ngModel"
+                 placeholder="e.g., 192.168.101.42\sqlexpress"
+                 required>
+          @if (serverInput.invalid && serverInput.touched) {
+            <mat-error>El servidor es obligatorio</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Port</mat-label>
+          <input matInput [(ngModel)]="newOrigin().puerto"
+                 name="puerto"
+                 #portInput="ngModel"
+                 placeholder="1433">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>User</mat-label>
+          <input matInput [(ngModel)]="newOrigin().user"
+                 name="user"
+                 #userInput="ngModel"
+                 placeholder="sa"
+                 required>
+          @if (userInput.invalid && userInput.touched) {
+            <mat-error>El usuario es obligatorio</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Password</mat-label>
+          <input matInput type="password"
+                 [(ngModel)]="newOrigin().password"
+                 name="password"
+                 #passwordInput="ngModel"
+                 required>
+          @if (passwordInput.invalid && passwordInput.touched) {
+            <mat-error>La contraseña es obligatoria</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Repository/Database</mat-label>
+          <input matInput [(ngModel)]="newOrigin().repository"
+                 name="repository"
+                 #repositoryInput="ngModel"
+                 placeholder="MAXPOINT_K003"
+                 required>
+          @if (repositoryInput.invalid && repositoryInput.touched) {
+            <mat-error>El repositorio/base de datos es obligatorio</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Adapter</mat-label>
+          <mat-select [(ngModel)]="newOrigin().adapter"
+                      name="adapter"
+                      #adapterInput="ngModel"
+                      required>
+            @for (adapter of adapters; track adapter) {
+              <mat-option [value]="adapter">{{ adapter }}</mat-option>
+            }
+          </mat-select>
+          @if (adapterInput.invalid && adapterInput.touched) {
+            <mat-error>El adaptador es obligatorio</mat-error>
+          }
+        </mat-form-field>
+
+        <button mat-raised-button color="primary" (click)="addOrigin()"
+                [disabled]="!isOriginFormValid()">
+          <mat-icon>add</mat-icon>
+          Add Origin
+        </button>
+      </form>
+    </div>
+    }
+  </mat-card-content>
+</mat-card>

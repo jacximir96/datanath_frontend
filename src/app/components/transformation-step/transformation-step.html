@@ -1,0 +1,457 @@
+<mat-card>
+  <mat-card-header>
+    <mat-card-title>Transformación</mat-card-title>
+    <mat-card-subtitle>Configure la transformación de datos: merge (JOINs) y salida</mat-card-subtitle>
+  </mat-card-header>
+  <mat-card-content>
+    @if (templates.length > 0) {
+      <mat-expansion-panel class="templates-panel">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            <mat-icon>library_books</mat-icon>
+            <span>Cargar Plantilla ({{ templates.length }} disponibles)</span>
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="templates-list">
+          @for (template of templates; track template.id) {
+            <mat-card class="template-card">
+              <mat-card-content>
+                <div class="template-info">
+                  <h4>{{ template.name }}</h4>
+                  <p>{{ template.description }}</p>
+                  <small>{{ template.entities.length }} entidad(es) | Format: {{ template.targetFormat }}</small>
+                </div>
+                <div class="template-actions">
+                  <button mat-raised-button color="primary" (click)="loadTemplate(template.id)">
+                    <mat-icon>download</mat-icon> Cargar
+                  </button>
+                  <button mat-button color="warn" (click)="deleteTemplate(template.id)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          }
+        </div>
+      </mat-expansion-panel>
+    }
+
+    <h3>Configuración Básica</h3>
+    <div class="basic-config">
+      <mat-form-field appearance="outline">
+        <mat-label>Tipo de Transformación</mat-label>
+        <mat-select [(ngModel)]="transformationType" (selectionChange)="onTransformationTypeChange()">
+          <mat-option value="T010">
+            <strong>T010</strong> - Transformación Simple (sin merge, sin wrap_structure)
+          </mat-option>
+          <mat-option value="T012">
+            <strong>T012</strong> - Transformación Avanzada (con merge y wrap_structure)
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Country</mat-label>
+        <input matInput [(ngModel)]="country" placeholder="ECU">
+      </mat-form-field>
+    </div>
+
+    <!-- Info box explaining the selected type -->
+    @if (transformationType === 'T010') {
+      <mat-card class="info-card">
+        <mat-card-content>
+          <mat-icon color="primary">info</mat-icon>
+          <div>
+            <strong>T010 - Transformación Simple</strong>
+            <p>Genera un JSON básico con las entidades tal como vienen del origen. No requiere configuración de merge ni wrap_structure.</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    } @else {
+      <mat-card class="info-card">
+        <mat-card-content>
+          <mat-icon color="accent">info</mat-icon>
+          <div>
+            <strong>T012 - Transformación Avanzada</strong>
+            <p>Permite hacer JOINs entre tablas (merge), crear estructuras personalizadas (wrap_structure) y usar expresiones calculadas.</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Entities Info -->
+    @if (availableEntities.length > 0) {
+      <div class="entities-info">
+        <h4>
+          <mat-icon>table_chart</mat-icon> Entidades Disponibles ({{ availableEntities.length }})
+        </h4>
+        <div class="entity-chips">
+          @for (entity of availableEntities; track entity) {
+            <mat-chip>{{ entity }}</mat-chip>
+          }
+        </div>
+        <button mat-stroked-button color="primary" (click)="showMetadata = !showMetadata" style="margin-top: 12px;">
+          <mat-icon>{{ showMetadata ? 'visibility_off' : 'visibility' }}</mat-icon>
+          {{ showMetadata ? 'Ocultar' : 'Ver' }} Metadatos (Tablas, Columnas, Relaciones)
+        </button>
+      </div>
+    }
+
+    <!-- Metadata Viewer -->
+    @if (showMetadata && availableEntities.length > 0) {
+      <mat-card class="metadata-section">
+        <mat-card-header>
+          <mat-card-title>
+            <mat-icon>schema</mat-icon> Metadatos de Base de Datos
+          </mat-card-title>
+          <mat-card-subtitle>Vista de tablas y columnas para ayudarte a configurar el merge</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <p class="info-text">
+            <mat-icon>lightbulb</mat-icon>
+            Esta sección muestra la estructura de cada tabla para que puedas identificar fácilmente las columnas necesarias para el merge y wrap_structure.
+          </p>
+          <div class="metadata-viewer">
+            @for (entity of availableEntities; track entity) {
+              <mat-expansion-panel (opened)="loadMetadataForEntity(entity)">
+                <mat-expansion-panel-header>
+                  <mat-panel-title>
+                    <mat-icon>table_view</mat-icon>
+                    <strong>{{ entity }}</strong>
+                  </mat-panel-title>
+                </mat-expansion-panel-header>
+                <div class="entity-metadata">
+                  @if (getMetadataForEntity(entity)?.loading) {
+                    <div class="loading-container">
+                      <mat-spinner diameter="40"></mat-spinner>
+                      <p>Cargando metadatos...</p>
+                    </div>
+                  } @else {
+                    <!-- Columnas -->
+                    <h5><mat-icon>view_column</mat-icon> Columnas ({{ getMetadataForEntity(entity)?.columns?.length || 0 }})</h5>
+                    @if (getMetadataForEntity(entity)?.columns && getMetadataForEntity(entity)!.columns.length > 0) {
+                      <div class="columns-table">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Nombre</th>
+                              <th>Tipo</th>
+                              <th>Longitud</th>
+                              <th>Nullable</th>
+                              <th>PK</th>
+                              <th>Default</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            @for (column of getMetadataForEntity(entity)!.columns; track column.columnName) {
+                              <tr [class.primary-key]="column.isPrimaryKey">
+                                <td>
+                                  <strong>{{ column.columnName }}</strong>
+                                  @if (column.isPrimaryKey) {
+                                    <mat-icon class="pk-icon" color="accent">key</mat-icon>
+                                  }
+                                </td>
+                                <td><code>{{ column.dataType }}</code></td>
+                                <td>{{ column.maxLength || '-' }}</td>
+                                <td>
+                                  @if (column.isNullable) {
+                                    <mat-icon class="nullable-icon" color="primary">check_circle</mat-icon>
+                                  } @else {
+                                    <mat-icon class="not-nullable-icon">cancel</mat-icon>
+                                  }
+                                </td>
+                                <td>
+                                  @if (column.isPrimaryKey) {
+                                    <mat-icon color="accent">key</mat-icon>
+                                  }
+                                </td>
+                                <td><code>{{ column.defaultValue || '-' }}</code></td>
+                              </tr>
+                            }
+                          </tbody>
+                        </table>
+                      </div>
+                    } @else {
+                      <p class="no-data-text">No se encontraron columnas</p>
+                    }
+
+                    <!-- Relaciones -->
+                    <h5><mat-icon>link</mat-icon> Relaciones ({{ getMetadataForEntity(entity)?.relations?.length || 0 }})</h5>
+                    @if (getMetadataForEntity(entity)?.relations && getMetadataForEntity(entity)!.relations.length > 0) {
+                      <div class="relations-list">
+                        @for (relation of getMetadataForEntity(entity)!.relations; track relation.relationName) {
+                          <mat-card class="relation-card" [class.foreign-key]="relation.relationType === 'ForeignKey'" [class.referenced-by]="relation.relationType === 'ReferencedBy'">
+                            <mat-card-content>
+                              <div class="relation-header">
+                                @if (relation.relationType === 'ForeignKey') {
+                                  <mat-icon color="primary">arrow_forward</mat-icon>
+                                  <span class="relation-type fk">Foreign Key</span>
+                                } @else {
+                                  <mat-icon color="accent">arrow_back</mat-icon>
+                                  <span class="relation-type ref">Referenced By</span>
+                                }
+                              </div>
+                              <div class="relation-details">
+                                <p><strong>{{ relation.relationName }}</strong></p>
+                                <p class="relation-path">
+                                  <code>{{ relation.fromTable }}.{{ relation.fromColumn }}</code>
+                                  <mat-icon>arrow_forward</mat-icon>
+                                  <code>{{ relation.toTable }}.{{ relation.toColumn }}</code>
+                                </p>
+                              </div>
+                            </mat-card-content>
+                          </mat-card>
+                        }
+                      </div>
+                    } @else {
+                      <p class="no-data-text">No se encontraron relaciones</p>
+                    }
+                  }
+                </div>
+              </mat-expansion-panel>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
+    <!-- Merge Configuration (only for T012) - OCULTO TEMPORALMENTE -->
+    @if (false && transformationType === 'T012') {
+    <mat-card class="merge-section">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>merge</mat-icon> Configuración de Merge (JOINs)
+        </mat-card-title>
+        <mat-card-subtitle>Define cómo se unirán las tablas</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (mergeConfigs.length > 0) {
+          <mat-card class="auto-detect-card">
+            <mat-card-content>
+              <mat-icon color="primary">auto_awesome</mat-icon>
+              <div>
+                <strong>Merges Auto-detectados</strong>
+                <p>Se detectaron {{ mergeConfigs.length }} relaciones(es) basadas en las Foreign Keys configuradas en el paso de Entidades. Puedes editarlos o agregar más manualmente.</p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <div class="merge-list">
+            <h4>Merges Configurados ({{ mergeConfigs.length }})</h4>
+            @for (merge of mergeConfigs; track $index) {
+              <mat-card class="merge-card">
+                <mat-card-content>
+                  <div class="merge-details">
+                    <p><strong>Base:</strong> {{ merge.base }}</p>
+                    <p><strong>Tipo:</strong> <mat-chip>{{ merge.type | uppercase }}</mat-chip></p>
+                    <p><strong>Targets:</strong></p>
+                    <div class="target-chips">
+                      @for (target of merge.targets; track target) {
+                        <mat-chip>{{ target }}</mat-chip>
+                      }
+                    </div>
+                    <p><strong>Condiciones (ON):</strong></p>
+                    <div class="on-chips">
+                      @for (on of merge.on; track $index) {
+                        <mat-chip>{{ on.left }} = {{ on.right }}</mat-chip>
+                      }
+                    </div>
+                  </div>
+                  <button mat-button color="warn" (click)="removeMerge($index)">
+                    <mat-icon>delete</mat-icon> Eliminar
+                  </button>
+                </mat-card-content>
+              </mat-card>
+            }
+          </div>
+        }
+
+        <div class="add-merge-section">
+          <h4>Agregar Nuevo Merge</h4>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Tabla Base</mat-label>
+            <mat-select [(ngModel)]="newMergeBase">
+              @for (entity of availableEntities; track entity) {
+                <mat-option [value]="entity">{{ entity }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Tipo de Join</mat-label>
+            <mat-select [(ngModel)]="newMergeType">
+              @for (type of mergeTypes; track type) {
+                <mat-option [value]="type">{{ type | uppercase }} JOIN</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+
+          <div class="targets-section">
+            <h5>Tablas Target (a unir con base)</h5>
+            <div class="target-chips">
+              @for (target of newMergeTargets(); track $index) {
+                <mat-chip (removed)="removeMergeTarget($index)">
+                  {{ target }}
+                  <button matChipRemove><mat-icon>cancel</mat-icon></button>
+                </mat-chip>
+              }
+            </div>
+            <div class="target-input">
+              <mat-form-field appearance="outline">
+                <mat-label>Agregar Target</mat-label>
+                <mat-select [(ngModel)]="newMergeTargetInput">
+                  @for (entity of availableEntities; track entity) {
+                    <mat-option [value]="entity">{{ entity }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button mat-button color="accent" (click)="addMergeTarget()">
+                <mat-icon>add</mat-icon> Agregar
+              </button>
+            </div>
+          </div>
+
+          <div class="on-section">
+            <h5>Condiciones ON (columnas de unión)</h5>
+            <div class="on-chips">
+              @for (on of newMergeOn(); track $index) {
+                <mat-chip (removed)="removeMergeOn($index)">
+                  {{ on.left }} = {{ on.right }}
+                  <button matChipRemove><mat-icon>cancel</mat-icon></button>
+                </mat-chip>
+              }
+            </div>
+            <div class="on-input">
+              <mat-form-field appearance="outline">
+                <mat-label>Columna Izquierda (left)</mat-label>
+                <input matInput [(ngModel)]="newMergeOnLeft" placeholder="tabla1.id">
+              </mat-form-field>
+              <mat-form-field appearance="outline">
+                <mat-label>Columna Derecha (right)</mat-label>
+                <input matInput [(ngModel)]="newMergeOnRight" placeholder="tabla2.id">
+              </mat-form-field>
+              <button mat-button color="accent" (click)="addMergeOn()">
+                <mat-icon>add</mat-icon> Agregar
+              </button>
+            </div>
+          </div>
+
+          <button mat-raised-button color="primary" (click)="addMerge()"
+                  [disabled]="!newMergeBase || newMergeTargets().length === 0 || newMergeOn().length === 0">
+            <mat-icon>add</mat-icon> Agregar Merge
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+    }
+
+    <!-- Output Configuration (only for T012) -->
+    @if (transformationType === 'T012') {
+    <mat-card class="output-section">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon>output</mat-icon> Configuración de Salida
+        </mat-card-title>
+        <mat-card-subtitle>Define el formato y estructura de salida</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (filter.length > 0) {
+          <div class="filter-list">
+            <h4>Configuraciones de Salida ({{ filter.length }})</h4>
+            @for (item of filter; track $index) {
+              <mat-card class="filter-card">
+                <mat-card-content>
+                  <p><strong>Formato:</strong> {{ item.output_format }}</p>
+                  <p><strong>Estructura:</strong></p>
+                  <pre>{{ item.wrap_structure | json }}</pre>
+                  <button mat-button color="warn" (click)="removeFilter($index)">
+                    <mat-icon>delete</mat-icon> Eliminar
+                  </button>
+                </mat-card-content>
+              </mat-card>
+            }
+          </div>
+        }
+
+        <div class="add-filter-section">
+          <h4>Agregar Configuración de Salida</h4>
+          <mat-form-field appearance="outline">
+            <mat-label>Formato de Salida</mat-label>
+            <mat-select [(ngModel)]="newOutputFormat">
+              <mat-option value="json">JSON</mat-option>
+              <mat-option value="csv">CSV</mat-option>
+              <mat-option value="parquet">Parquet</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <!-- Mode Toggle -->
+          <div class="builder-mode-toggle">
+            <button mat-raised-button
+                    [color]="useVisualBuilder ? 'primary' : ''"
+                    (click)="useVisualBuilder = true">
+              <mat-icon>auto_fix_high</mat-icon> Constructor Visual
+            </button>
+            <button mat-raised-button
+                    [color]="!useVisualBuilder ? 'primary' : ''"
+                    (click)="useVisualBuilder = false">
+              <mat-icon>code</mat-icon> JSON Manual
+            </button>
+          </div>
+
+          <!-- Visual Builder -->
+          @if (useVisualBuilder) {
+            <app-json-builder
+              [availableColumns]="availableColumns"
+              [columnMetadata]="columnMetadata()"
+              (structure)="onJsonBuilderChange($event)">
+            </app-json-builder>
+          }
+
+          <!-- Manual JSON Input -->
+          @if (!useVisualBuilder) {
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Wrap Structure (JSON)</mat-label>
+              <textarea matInput [(ngModel)]="newWrapStructure"
+                        rows="15"
+                        placeholder='{"data": {}, "metadata": {}}'></textarea>
+            </mat-form-field>
+          }
+
+          <button mat-raised-button color="primary" (click)="addFilter()">
+            <mat-icon>add</mat-icon> Agregar Configuración de Salida
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+    }
+
+    @if (hasEntities) {
+      <div class="save-template-section">
+        <button mat-button color="accent" (click)="showSaveTemplate = !showSaveTemplate">
+          <mat-icon>save_as</mat-icon>
+          {{ showSaveTemplate ? 'Cancelar' : 'Guardar como Plantilla' }}
+        </button>
+
+        @if (showSaveTemplate) {
+          <div class="template-form">
+            <h4>Guardar Entities + Transformation como Plantilla</h4>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Nombre de la Plantilla</mat-label>
+              <input matInput [(ngModel)]="templateName" placeholder="e.g., Ventas MAXPOINT">
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Descripción (Opcional)</mat-label>
+              <textarea matInput [(ngModel)]="templateDescription" rows="2"
+                        placeholder="Describe esta plantilla..."></textarea>
+            </mat-form-field>
+            <button mat-raised-button color="primary" (click)="saveAsTemplate()">
+              <mat-icon>save</mat-icon>
+              Guardar Plantilla
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

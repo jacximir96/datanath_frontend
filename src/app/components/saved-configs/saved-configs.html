@@ -1,0 +1,77 @@
+<div class="saved-configs-container">
+  <div class="header">
+    <h2>
+      <mat-icon>bookmark</mat-icon>
+      Configuraciones Guardadas
+    </h2>
+    <p class="subtitle">Ejecute configuraciones guardadas con un solo click</p>
+  </div>
+
+  @if (savedConfigs.length === 0) {
+    <mat-card class="no-configs">
+      <mat-icon>bookmark_border</mat-icon>
+      <h3>No hay configuraciones guardadas</h3>
+      <p>Cuando envíe una configuración exitosamente, podrá guardarla para usarla nuevamente en el futuro.</p>
+      <p class="hint">Las configuraciones guardadas aparecerán aquí y podrá ejecutarlas con un solo click.</p>
+    </mat-card>
+  } @else {
+    <div class="configs-grid">
+      @for (config of savedConfigs; track config.id) {
+        <mat-card class="config-card">
+          <mat-card-header>
+            <mat-card-title>
+              <mat-icon>settings</mat-icon>
+              {{ config.name }}
+            </mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p class="description">{{ config.description || 'Sin descripción' }}</p>
+
+            <div class="config-info">
+              <mat-chip class="info-chip">
+                <mat-icon>person</mat-icon>
+                {{ config.config.client }}
+              </mat-chip>
+              <mat-chip class="info-chip">
+                <mat-icon>storage</mat-icon>
+                {{ config.config.origins.length }} Orígenes
+              </mat-chip>
+              <mat-chip class="info-chip">
+                <mat-icon>table_chart</mat-icon>
+                {{ config.config.entities.length }} Entidades
+              </mat-chip>
+            </div>
+
+            <div class="dates">
+              <p><strong>Creada:</strong> {{ formatDate(config.createdAt) }}</p>
+              @if (config.lastUsed) {
+                <p><strong>Última ejecución:</strong> {{ formatDate(config.lastUsed) }}</p>
+              }
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-raised-button color="primary" (click)="executeConfig(config)"
+                    [disabled]="isSending(config.id)">
+              @if (isSending(config.id)) {
+                <mat-spinner diameter="20"></mat-spinner>
+                <span>Ejecutando...</span>
+              } @else {
+                <ng-container>
+                  <mat-icon>play_arrow</mat-icon>
+                  <span>Ejecutar</span>
+                </ng-container>
+              }
+            </button>
+            <button mat-button (click)="loadConfig(config)">
+              <mat-icon>edit</mat-icon>
+              Cargar en Editor
+            </button>
+            <button mat-icon-button color="warn" (click)="deleteConfig(config)">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  }
+</div>
