@@ -300,23 +300,30 @@ export class ConfigService {
         const allMasterOrigins = config.origins;
 
 
+        // Obtener todos los nombres de entidades actuales
+        const existingEntityNames = new Set(
+          config.entityGroups.flatMap(group => group.entities.map(e => e.name))
+        );
 
         scenarios.forEach(scenario => {
 
           scenario.assignments.forEach((repoName, entityName) => {
 
-            const origin = allMasterOrigins.find(o => o.repository === repoName);
+            // Verificar que la entidad todavía existe
+            if (existingEntityNames.has(entityName)) {
+              const origin = allMasterOrigins.find(o => o.repository === repoName);
 
-            if (origin) {
+              if (origin) {
 
-              // Reemplazar localhost por host.docker.internal
-              const processedOrigin = {
-                ...origin,
-                servidor: origin.servidor === 'localhost' ? 'host.docker.internal' : origin.servidor,
-                groupId: scenario.name
-              };
-              newOrigins.push(processedOrigin);
+                // Reemplazar localhost por host.docker.internal
+                const processedOrigin = {
+                  ...origin,
+                  servidor: origin.servidor === 'localhost' ? 'host.docker.internal' : origin.servidor,
+                  groupId: scenario.name
+                };
+                newOrigins.push(processedOrigin);
 
+              }
             }
 
           });
