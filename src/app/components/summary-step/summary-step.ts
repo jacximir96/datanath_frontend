@@ -120,7 +120,8 @@ export class SummaryStepComponent implements OnInit {
   }
 
   private performSend(): void {
-    const config = this.configService.config();
+    // Usar el JSON ya procesado y limpio (el mismo que se muestra en la vista)
+    const config = JSON.parse(this.configService.exportJSON());
     this.isSending = true;
 
     this.orchestratorService.sendToOrchestrator(config).subscribe({

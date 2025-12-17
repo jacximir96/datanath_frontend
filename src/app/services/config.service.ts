@@ -64,6 +64,18 @@ export class ConfigService {
     this.scenariosSignal.set(serializedScenarios);
   }
 
+  setPrincipalScenario(principalScenario: Scenario) {
+    const serializedPrincipal = {
+      ...principalScenario,
+      _assignmentsArray: Array.from(principalScenario.assignments.entries())
+    };
+  
+    this.scenariosSignal.update(currentScenarios => {
+      const otherScenarios = currentScenarios.filter(s => !s.isReadOnly);
+      return [serializedPrincipal, ...otherScenarios];
+    });
+  }
+
   updateClient(client: string) {
     this.configSignal.update(config => ({ ...config, client }));
   }
@@ -162,95 +174,226 @@ export class ConfigService {
     return this.configSignal();
   }
 
-  resetConfiguration() {
-    this.configSignal.set({
-      client: '',
-      origins: [],
-      entities: [],
-      entityGroups: [],
-      transformation: {
-        code: '',
-        country: '',
-        filter: []
-      },
-      target: {
-        connection: {
-          server: '',
-          port: '',
-          user: '',
-          password: '',
-          repository: '',
-          adapter: ''
+    resetConfiguration() {
+
+      this.configSignal.set({
+
+        client: '',
+
+        origins: [],
+
+        entities: [],
+
+        entityGroups: [],
+
+        transformation: {
+
+          code: '',
+
+          country: '',
+
+          filter: []
+
         },
-        entities: []
-      }
-    });
-  }
 
-  exportJSON(): string {
-    const config = this.configSignal();
-    const scenarios = this.scenarios();
+        target: {
 
-    // Conditional logic for multi-group scenarios
-    if (scenarios.length > 1) {
-      const newOrigins: any[] = [];
-      const allMasterOrigins = config.origins;
+          connection: {
 
-      scenarios.forEach(scenario => {
-        scenario.assignments.forEach((repoName, entityName) => {
-          const origin = allMasterOrigins.find(o => o.repository === repoName);
-          if (origin) {
-            // Create a copy of the origin and add the groupId
-            newOrigins.push({
-              ...origin,
-              groupId: scenario.name
-            });
-          }
-        });
+            server: '',
+
+            port: '',
+
+            user: '',
+
+            password: '',
+
+            repository: '',
+
+            adapter: ''
+
+          },
+
+          entities: []
+
+        }
+
       });
 
-      // Create entitiesPattern from entityGroups
-      const entitiesPattern = config.entityGroups.map((group, index) => ({
-        relativePosition: index,
-        entities: group.entities.map(e => {
-          // Return a clean entity object without internal properties
-          const { relations, originRepository, ...cleanEntity } = e;
-          return cleanEntity;
-        })
-      }));
-
-      // Build export config in the correct order
-      const exportConfig: any = {
-        client: config.client,
-        origins: newOrigins,
-        entitiesPattern: entitiesPattern,
-        transformation: config.transformation,
-        target: config.target
-      };
-
-      return JSON.stringify(exportConfig, null, 2);
-
-    } else {
-      // Original behavior for single-group scenario
-      const cleanEntities = (config.entityGroups || []).flatMap(group =>
-        group.entities.map(e => {
-          const { relations, originRepository, ...cleanEntity } = e;
-          return cleanEntity;
-        })
-      );
-
-      // Build export config in the correct order
-      const exportConfig: any = {
-        client: config.client,
-        origins: config.origins,
-        entities: cleanEntities,
-        transformation: config.transformation,
-        target: config.target
-      };
-
-      return JSON.stringify(exportConfig, null, 2);
     }
-  }
+
+  
+
+    public transformEntityForExport(e: Entity): Entity {
+
+      // Create a deep copy to avoid modifying the original signal state
+
+      const entityToExport: Entity = JSON.parse(JSON.stringify(e)); 
+
+  
+
+      if (entityToExport.filters) {
+
+        entityToExport.filters.forEach(filter => { 
+
+          if (filter.isDynamic && filter.dynamicSource) {
+
+            filter.value = `\${${filter.dynamicSource.entityName}.${filter.dynamicSource.fieldName}}`;
+
+            delete filter.isDynamic;
+
+            delete filter.dynamicSource;
+
+          }
+
+        });
+
+      }
+
+      
+
+      delete entityToExport.relations;
+
+      delete entityToExport.originRepository;
+
+      return entityToExport;
+
+    }
+
+  
+
+    exportJSON(): string {
+
+      const config = this.configSignal();
+
+      const scenarios = this.scenarios();
+
+
+
+      // Apply transformation rules before exporting
+
+      const finalTransformation: any = {
+        code: config.transformation.code,
+        country: config.transformation.country,
+        properties: [],
+        filter: config.transformation.filter
+      };
+
+      if (finalTransformation.code === 'T012') {
+
+        finalTransformation.filter = [
+
+          { output_format: 'json', wrap_structure: {} }
+
+        ];
+
+      }
+
+  
+
+      // Conditional logic for multi-group scenarios
+
+      if (scenarios.length > 1) {
+
+        const newOrigins: any[] = [];
+
+        const allMasterOrigins = config.origins;
+
+
+
+        scenarios.forEach(scenario => {
+
+          scenario.assignments.forEach((repoName, entityName) => {
+
+            const origin = allMasterOrigins.find(o => o.repository === repoName);
+
+            if (origin) {
+
+              // Reemplazar localhost por host.docker.internal
+              const processedOrigin = {
+                ...origin,
+                servidor: origin.servidor === 'localhost' ? 'host.docker.internal' : origin.servidor,
+                groupId: scenario.name
+              };
+              newOrigins.push(processedOrigin);
+
+            }
+
+          });
+
+        });
+
+  
+
+        const entitiesPattern = config.entityGroups.map((group, index) => ({
+
+          relativePosition: index,
+
+          entities: group.entities.map(e => this.transformEntityForExport(e))
+
+        }));
+
+  
+
+        const exportConfig: any = {
+
+          client: config.client,
+
+          origins: newOrigins,
+
+          entitiesPattern: entitiesPattern,
+
+          transformation: finalTransformation,
+
+          target: config.target
+
+        };
+
+  
+
+        return JSON.stringify(exportConfig, null, 2);
+
+  
+
+      } else {
+
+        // Original behavior for single-group scenario
+
+        const cleanEntities = (config.entityGroups || []).flatMap(group =>
+
+          group.entities.map(e => this.transformEntityForExport(e))
+
+        );
+
+
+
+        // Reemplazar localhost por host.docker.internal en origins
+        const processedOrigins = config.origins.map(origin => ({
+          ...origin,
+          servidor: origin.servidor === 'localhost' ? 'host.docker.internal' : origin.servidor
+        }));
+
+        const exportConfig: any = {
+
+          client: config.client,
+
+          origins: processedOrigins,
+
+        entities: cleanEntities,
+
+          transformation: finalTransformation,
+
+          target: config.target
+
+        };
+
+  
+
+        return JSON.stringify(exportConfig, null, 2);
+
+      }
+
+    }
 
   importJSON(jsonString: string): boolean {
     try {

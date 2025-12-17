@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, effect, OnInit } from '@angular/core';
+import { Component, inject, computed, signal, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ConfigService, Scenario } from '../../services/config.service';
 import { Origin, Entity } from '../../models/config.model';
@@ -23,7 +23,7 @@ import { CdkDrag, CdkDropList, CdkDragDrop } from '@angular/cdk/drag-drop';
   templateUrl: './connection-groups-step.html',
   styleUrl: './connection-groups-step.css'
 })
-export class ConnectionGroupsStepComponent implements OnInit {
+export class ConnectionGroupsStepComponent {
   protected configService = inject(ConfigService);
 
   readonly scenarios = this.configService.scenarios;
@@ -35,15 +35,10 @@ export class ConnectionGroupsStepComponent implements OnInit {
   readonly allOrigins = computed(() => this.configService.config().origins);
 
   constructor() {
-    // COMENTADO: Effect causa bucle infinito al actualizar scenarios
-    // effect(() => {
-    //   this.updatePrincipalScenario();
-    // }, { allowSignalWrites: true });
-  }
-
-  ngOnInit(): void {
-    // Asegurar que el grupo principal exista al inicializar el componente
-    this.updatePrincipalScenario();
+    // Re-enable effect to react to data changes from other steps.
+    effect(() => {
+      this.updatePrincipalScenario();
+    }, { allowSignalWrites: true });
   }
 
   private updatePrincipalScenario(): void {
@@ -73,11 +68,8 @@ export class ConnectionGroupsStepComponent implements OnInit {
       assignments: principalAssignments
     };
 
-    // Preserve existing user-created scenarios if they exist
-    const currentScenarios = this.scenarios();
-    const otherScenarios = currentScenarios.filter(s => !s.isReadOnly);
-
-    this.configService.updateScenarios([principalScenario, ...otherScenarios]);
+    // Use the new, safe method to prevent infinite loops.
+    this.configService.setPrincipalScenario(principalScenario);
   }
 
   addScenario(): void {

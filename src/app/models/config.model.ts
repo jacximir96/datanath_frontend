@@ -11,6 +11,11 @@ export interface Filter {
   name: string;
   operator: string;
   value: string;
+  isDynamic?: boolean;
+  dynamicSource?: {
+    entityName: string;
+    fieldName: string;
+  };
 }
 
 export interface Property {

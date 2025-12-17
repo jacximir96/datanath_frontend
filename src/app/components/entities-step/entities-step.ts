@@ -377,11 +377,17 @@ export class EntitiesStepComponent implements OnInit {
     const filterValue = values.length === 1 ? values[0] : values.join(',');
     const filterOperator = values.length === 1 ? 'equals' : 'in';
 
-    this.currentEntityFilters.update(filters => [...filters, {
+    const newFilter: Filter = {
       name: targetColumn,
       operator: filterOperator,
-      value: filterValue
-    }]);
+      value: filterValue, // Keep the resolved value for UI-time queries
+      isDynamic: true,
+      dynamicSource: {
+        entityName: selectedGroup.name, // The group name is the entity name
+        fieldName: fieldName
+      }
+    };
+    this.currentEntityFilters.update(filters => [...filters, newFilter]);
 
     // Reset cascade filter form
     this.selectedPreviousGroup.set(null);
@@ -594,37 +600,42 @@ export class EntitiesStepComponent implements OnInit {
     }
 
     // TODO: SE TIENE QUE BORRAR - Validación temporal para Docker
-    // Reemplazar "localhost" por "host.docker.internal" para MongoDB en Docker
     requiredOrigins = requiredOrigins.map(origin => {
       if ((origin.adapter?.toLowerCase().includes('mongo')) &&
           origin.servidor?.toLowerCase() === 'localhost') {
-        return {
-          ...origin,
-          servidor: 'host.docker.internal'
-        };
+        return { ...origin, servidor: 'host.docker.internal' };
       }
       return origin;
     });
 
-    const generatedTransformationProperties = this.generateTransformationProperties(group.entities);
-    const generatedWrapStructure = group.type === 'Modelo' ? {} : this.generateWrapStructure(group.entities); // Generate wrap structure
-
-    // Create a clean version of entities for the orchestrator, removing internal fields
-    const cleanEntities: Entity[] = group.entities.map(entity => {
-      const { relations, originRepository, ...cleanEntity } = entity;
-      return cleanEntity;
+    // Create a clean version of entities for the orchestrator, with resolved filter values
+    const cleanEntities: Entity[] = JSON.parse(JSON.stringify(group.entities)); // Deep copy to remove signal wrappers and allow mutation
+    cleanEntities.forEach(entity => {
+        delete (entity as any).relations;
+        delete (entity as any).originRepository;
+        if (entity.filters) {
+            entity.filters.forEach(filter => {
+                delete (filter as any).isDynamic;
+                delete (filter as any).dynamicSource;
+            });
+        }
     });
+
+    // Apply transformation rules specifically for this execution
+    const finalTransformation = { ...config.transformation };
+    if (finalTransformation.code === 'T012') {
+      finalTransformation.filter = [
+        { output_format: 'json', wrap_structure: {} }
+      ];
+    }
+    finalTransformation.country = 'ECU';
+    finalTransformation.properties = this.generateTransformationProperties(group.entities);
 
     const groupConfig = {
         client: config.client,
         origins: requiredOrigins,
-        entities: cleanEntities, // Use the cleaned entities
-        transformation: {
-            code: "T012",
-            country: "ECU",
-            properties: generatedTransformationProperties, // Use generated properties
-            filter: [{ output_format: "json", wrap_structure: generatedWrapStructure }] // Use generated wrap_structure
-        },
+        entities: cleanEntities, 
+        transformation: finalTransformation,
         target: {
             connection: {
                 server: "https://host.docker.internal:8081",

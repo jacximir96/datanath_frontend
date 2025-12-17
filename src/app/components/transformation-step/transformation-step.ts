@@ -177,6 +177,7 @@ export class TransformationStepComponent implements OnInit {
   ngOnInit() {
     this.configService.loadTemplatesFromLocalStorage();
     this.autoDetectMerges();
+    this.onTransformationTypeChange(); // Set default value on init
   }
 
   autoDetectMerges() {
