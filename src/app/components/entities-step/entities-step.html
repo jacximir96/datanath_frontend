@@ -56,90 +56,11 @@
 
             <!-- Group Actions -->
             <div class="group-actions">
-              <button
-                mat-stroked-button
-                [color]="group.type === 'Metamodelo' ? 'accent' : 'primary'"
-                (click)="executeQueryForGroup(group, $index)"
-                [disabled]="group.isExecuting">
-                @if (group.isExecuting) {
-                  <ng-container>
-                    <mat-spinner diameter="20"></mat-spinner>
-                    <span>Ejecutando...</span>
-                  </ng-container>
-                } @else {
-                  <ng-container>
-                    <mat-icon>play_arrow</mat-icon>
-                    <span>Consultar {{ group.type }}</span>
-                  </ng-container>
-                }
-              </button>
               <button mat-button color="warn" (click)="removeEntityGroup($index)">
                 <mat-icon>delete</mat-icon>
                 Eliminar {{ group.type }}
               </button>
             </div>
-
-            <!-- Sent Config JSON (Expandable) -->
-            @if (group.sentConfigJson) {
-              <mat-expansion-panel class="result-expansion-panel">
-                <mat-expansion-panel-header>
-                  <mat-panel-title>
-                    <mat-icon>send</mat-icon> Configuración Enviada al Orquestador
-                  </mat-panel-title>
-                </mat-expansion-panel-header>
-                <div class="result-actions">
-                  <button mat-button (click)="copyResultToClipboard('group', 'sentConfigJson', $index)">
-                    <mat-icon>content_copy</mat-icon> Copiar
-                  </button>
-                  <button mat-button (click)="closeQueryResult('group', 'sentConfigJson', $index)">
-                    <mat-icon>close</mat-icon> Cerrar
-                  </button>
-                </div>
-                <div class="result-preview"><pre>{{ group.sentConfigJson | json }}</pre></div>
-              </mat-expansion-panel>
-            }
-            
-            <!-- Group Query Result (Expandable) -->
-            @if (group.queryResult; as result) {
-              <mat-expansion-panel class="result-expansion-panel">
-                <mat-expansion-panel-header>
-                  <mat-panel-title>
-                    <mat-icon>check_circle</mat-icon> Resultado de la Consulta
-                  </mat-panel-title>
-                </mat-expansion-panel-header>
-                <div class="result-actions">
-                  <button mat-button (click)="copyResultToClipboard('group', group.name, $index)">
-                    <mat-icon>content_copy</mat-icon> Copiar
-                  </button>
-                  <button mat-button (click)="closeQueryResult('group', group.name, $index)">
-                    <mat-icon>close</mat-icon> Cerrar
-                  </button>
-                </div>
-                <div class="result-preview"><pre>{{ result | json }}</pre></div>
-              </mat-expansion-panel>
-            }
-
-            <!-- Group Query Error (Remains as is, or can be wrapped if preferred) -->
-            @if (group.queryError; as error) {
-              <mat-card class="query-result-card error">
-                <mat-card-header>
-                  <mat-card-title>Error en la Consulta</mat-card-title>
-                </mat-card-header>
-                <mat-card-content>
-                  <div class="result-actions">
-                    <button mat-button (click)="closeQueryResult('group', group.name, $index)">
-                      <mat-icon>close</mat-icon> Cerrar
-                    </button>
-                  </div>
-                  <div class="error-message">
-                    <p><strong>Error:</strong> {{ error.message }}</p>
-                    @if (error.error) {
-                      <pre>{{ error.error | json }}</pre>
-                    }
-                  </div>
-                </mat-card-content>
-              </mat-card>
-            }
 
             <!-- Join Conditions (Cruces) -->
             @if (group.type === 'Metamodelo' && group.entities[0]?.relations?.length) {

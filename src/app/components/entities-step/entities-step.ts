@@ -150,15 +150,10 @@ export class EntitiesStepComponent implements OnInit {
   // NEW: Get entity groups from the service
   entityGroups = computed(() => this.configService.config().entityGroups || []);
 
-  // Check if a new group can be created (cascade validation)
+  // Check if a new group can be created (no longer depends on query results)
   canCreateNewGroup = computed(() => {
-    const groups = this.entityGroups();
-    if (groups.length === 0) {
-      return true; // No groups yet, can create
-    }
-    // Check if the last group has a result
-    const lastGroup = groups[groups.length - 1];
-    return lastGroup.queryResult !== null && lastGroup.queryResult !== undefined;
+    // Always allow creating new groups since we don't require query execution
+    return true;
   });
 
   // Dynamic mode functions
@@ -273,7 +268,8 @@ export class EntitiesStepComponent implements OnInit {
 
   // Cascade filter functions
   getGroupsWithResults(): EntityGroup[] {
-    return this.entityGroups().filter(group => group.queryResult && group.queryResult !== null);
+    // Return all groups to allow building cascade filters without requiring queryResult
+    return this.entityGroups();
   }
 
   onPreviousGroupSelected(group: EntityGroup): void {
@@ -281,9 +277,23 @@ export class EntitiesStepComponent implements OnInit {
     this.selectedPreviousField.set('');
     this.targetFilterColumn.set('');
 
-    // Extract available fields from the result
-    const fields = this.extractFieldsFromResult(group.queryResult);
+    // Extract available fields from the group's entities (instead of queryResult)
+    const fields = this.extractFieldsFromGroup(group);
     this.availableFieldsFromPreviousResult.set(fields);
+  }
+
+  extractFieldsFromGroup(group: EntityGroup): string[] {
+    if (!group || !group.entities || group.entities.length === 0) {
+      return [];
+    }
+    // Get all property names from all entities in the group
+    const allFields = new Set<string>();
+    group.entities.forEach(entity => {
+      entity.properties.forEach(prop => {
+        allFields.add(prop.name);
+      });
+    });
+    return Array.from(allFields);
   }
 
   extractFieldsFromResult(result: any): string[] {
@@ -366,21 +376,12 @@ export class EntitiesStepComponent implements OnInit {
       return;
     }
 
-    const values = this.extractValuesFromResult(selectedGroup.queryResult, fieldName);
-
-    if (values.length === 0) {
-      this.snackBar.open('No se encontraron valores para el campo seleccionado', 'Cerrar', { duration: 3000 });
-      return;
-    }
-
-    // Create filter with 'in' operator and all extracted values
-    const filterValue = values.length === 1 ? values[0] : values.join(',');
-    const filterOperator = values.length === 1 ? 'equals' : 'in';
-
+    // Create filter with placeholder value and dynamic metadata
+    // The actual value will be resolved by the orchestrator at runtime
     const newFilter: Filter = {
       name: targetColumn,
-      operator: filterOperator,
-      value: filterValue, // Keep the resolved value for UI-time queries
+      operator: 'in', // Use 'in' for dynamic filters (can have multiple values)
+      value: `\${${selectedGroup.name}.${fieldName}}`, // Placeholder showing the dynamic reference
       isDynamic: true,
       dynamicSource: {
         entityName: selectedGroup.name, // The group name is the entity name
@@ -395,7 +396,7 @@ export class EntitiesStepComponent implements OnInit {
     this.targetFilterColumn.set('');
     this.availableFieldsFromPreviousResult.set([]);
 
-    this.snackBar.open(`Filtro en cascada agregado: ${values.length} valor(es)`, 'Cerrar', { duration: 3000 });
+    this.snackBar.open(`Filtro en cascada agregado: ${selectedGroup.name}.${fieldName}`, 'Cerrar', { duration: 3000 });
   }
 
   addEntityFromMetadata(): void {
@@ -438,15 +439,15 @@ export class EntitiesStepComponent implements OnInit {
 
     this.configService.addEntityGroup(finalNewGroup);
 
-    // Automatic execution after group is added
-    const newIndex = this.configService.config().entityGroups.length - 1;
-    this.executeQueryForGroup(finalNewGroup, newIndex);
+    // Automatic execution disabled - users will build the flow without executing queries
+    // const newIndex = this.configService.config().entityGroups.length - 1;
+    // this.executeQueryForGroup(finalNewGroup, newIndex);
 
     Swal.fire({
       icon: 'success',
       title: '¡Modelo agregado!',
-      html: `El modelo <strong>"${finalNewGroup.name}"</strong> ha sido agregado exitosamente.<br>Ejecutando consulta automáticamente...`,
-      timer: 5000,
+      html: `El modelo <strong>"${finalNewGroup.name}"</strong> ha sido agregado exitosamente.`,
+      timer: 3000,
       timerProgressBar: true,
       showConfirmButton: false,
       toast: true,
@@ -479,16 +480,17 @@ export class EntitiesStepComponent implements OnInit {
         entities: [{ ...entity }]
       };
       this.configService.addEntityGroup(newGroup);
-      
-      const newIndex = this.configService.config().entityGroups.length - 1;
-      this.executeQueryForGroup(newGroup, newIndex);
+
+      // Automatic execution disabled - users will build the flow without executing queries
+      // const newIndex = this.configService.config().entityGroups.length - 1;
+      // this.executeQueryForGroup(newGroup, newIndex);
 
       this.newEntity.set({ name: '', properties: [], filters: [] }); // Reset form
       Swal.fire({
         icon: 'success',
         title: '¡Modelo agregado!',
-        html: `El modelo <strong>"${newGroup.name}"</strong> ha sido agregado exitosamente.<br>Ejecutando consulta automáticamente...`,
-        timer: 5000,
+        html: `El modelo <strong>"${newGroup.name}"</strong> ha sido agregado exitosamente.`,
+        timer: 3000,
         timerProgressBar: true,
         showConfirmButton: false,
         toast: true,
