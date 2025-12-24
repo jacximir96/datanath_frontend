@@ -100,7 +100,9 @@ export class OrchestratorService {
     }
 
     const processId = this.generateProcessId();
-    const clientName = config.client || 'Unknown Client';
+    const clientName = (config.clients && config.clients.length > 0)
+      ? config.clients.join(', ')
+      : 'Unknown Client';
 
     // Agregar proceso a la lista con estado "pending"
     this.addProcess({

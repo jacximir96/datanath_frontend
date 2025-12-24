@@ -75,6 +75,8 @@ export class EntitiesStepComponent implements OnInit {
   private readonly ORCHESTRATOR_PASSWORD = 'usr_orquestador';
 
   // Signals for dynamic data
+  availableClients = computed(() => this.configService.config().clients); // List of clients
+  selectedClient = signal<string | null>(null); // Selected client name
   availableOrigins = computed(() => this.configService.config().origins);
   selectedOrigin = signal<Origin | null>(null);
   availableTables = signal<string[]>([]);
@@ -157,6 +159,25 @@ export class EntitiesStepComponent implements OnInit {
   });
 
   // Dynamic mode functions
+  onClientSelected(clientName: string): void {
+    this.selectedClient.set(clientName);
+    this.selectedTable.set(null);
+    this.tableColumns.set([]);
+
+    // Find the client in clientConfigs
+    const clientConfig = this.configService.clientConfigs().find(c => c.name === clientName);
+
+    if (clientConfig && clientConfig.stores.length > 0) {
+      // Take the first BD automatically
+      const firstOrigin = clientConfig.stores[0];
+      this.selectedOrigin.set(firstOrigin);
+      this.loadTablesForOrigin(firstOrigin);
+    } else {
+      this.selectedOrigin.set(null);
+      this.snackBar.open('No se encontraron bases de datos para este cliente', 'Cerrar', { duration: 3000 });
+    }
+  }
+
   onOriginSelected(origin: Origin): void {
     this.selectedOrigin.set(origin);
     this.selectedTable.set(null);
@@ -455,6 +476,7 @@ export class EntitiesStepComponent implements OnInit {
     });
 
     // Reset UI - Limpiar todos los campos para crear un nuevo modelo
+    this.selectedClient.set(null); // Reset selected client
     this.selectedOrigin.set(null);
     this.selectedTable.set(null);
     this.tableSearchText.set('');
@@ -587,8 +609,8 @@ export class EntitiesStepComponent implements OnInit {
 
   private performExecuteQueryForGroup(group: EntityGroup, index: number): void {
     const config = this.configService.config();
-    if (!config.client) {
-      this.snackBar.open('Por favor configura el cliente primero', 'Cerrar', { duration: 3000 });
+    if (!config.clients || config.clients.length === 0) {
+      this.snackBar.open('Por favor configura al menos un cliente primero', 'Cerrar', { duration: 3000 });
       return;
     }
 
@@ -634,7 +656,7 @@ export class EntitiesStepComponent implements OnInit {
     finalTransformation.properties = this.generateTransformationProperties(group.entities);
 
     const groupConfig = {
-        client: config.client,
+        clients: config.clients, // Changed from client to clients
         origins: requiredOrigins,
         entities: cleanEntities, 
         transformation: finalTransformation,

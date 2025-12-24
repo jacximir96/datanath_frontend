@@ -148,18 +148,19 @@
               </mat-card-content>
             </mat-card>
           }
-          <!-- Step 1: Select Origin -->
+          <!-- Step 1: Select Client -->
           <div class="step-section">
-            <h3>1. Seleccionar Origen de Datos</h3>
+            <h3>1. Seleccionar Cliente</h3>
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Origen</mat-label>
-              <mat-select [(value)]="selectedOrigin" (selectionChange)="onOriginSelected($event.value)" [disabled]="!canCreateNewGroup()">
-                @for (origin of availableOrigins(); track $index) {
-                  <mat-option [value]="origin">
-                    {{ origin.repository }} ({{ origin.adapter }}) - {{ origin.servidor }}
+              <mat-label>Cliente</mat-label>
+              <mat-select [(value)]="selectedClient" (selectionChange)="onClientSelected($event.value)" [disabled]="!canCreateNewGroup()">
+                @for (client of availableClients(); track client) {
+                  <mat-option [value]="client">
+                    {{ client }}
                   </mat-option>
                 }
               </mat-select>
+              <mat-hint>Se seleccionará automáticamente la primera base de datos del cliente</mat-hint>
             </mat-form-field>
           </div>
 

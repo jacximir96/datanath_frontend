@@ -7,7 +7,7 @@
     <mat-card-content>
       <div class="summary-info">
         <h3>Detalles de la Configuración</h3>
-        <p><strong>Cliente:</strong> {{ configService.config().client || 'No configurado' }}</p>
+        <p><strong>Cliente(s):</strong> {{ configService.config().clients?.join(', ') || 'No configurado' }}</p>
 
         <h4>Grupos de Origen</h4>
         <mat-accordion>

@@ -152,7 +152,7 @@ export interface Target {
 }
 
 export interface DataConfiguration {
-  client: string;
+  clients: string[]; // Changed from client: string to support multiple clients
   // LEGACY MODE (modo simple - un solo origen)
   origins: Origin[];
   entityGroups: EntityGroup[]; // Replaces entities: Entity[]

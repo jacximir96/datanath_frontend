@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, effect } from '@angular/core';
+import { Component, inject, computed, signal, effect, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ConfigService, Scenario } from '../../services/config.service';
 import { Origin, Entity } from '../../models/config.model';
@@ -23,22 +23,62 @@ import { CdkDrag, CdkDropList, CdkDragDrop } from '@angular/cdk/drag-drop';
   templateUrl: './connection-groups-step.html',
   styleUrl: './connection-groups-step.css'
 })
-export class ConnectionGroupsStepComponent {
+export class ConnectionGroupsStepComponent implements OnInit {
   protected configService = inject(ConfigService);
 
   readonly scenarios = this.configService.scenarios;
-  
-  readonly allEntities = computed(() => 
+
+  readonly allEntities = computed(() =>
     this.configService.config().entityGroups.flatMap(group => group.entities)
   );
-  
+
   readonly allOrigins = computed(() => this.configService.config().origins);
+
+  private lastEntityCount = 0;
+  private lastMaxConnections = 0;
 
   constructor() {
     // Re-enable effect to react to data changes from other steps.
     effect(() => {
       this.updatePrincipalScenario();
+
+      // Only recreate automatic scenarios if entities or connections changed
+      const currentEntityCount = this.allEntities().length;
+      const currentMaxConnections = this.calculateMaxConnections();
+
+      if (currentEntityCount !== this.lastEntityCount ||
+          currentMaxConnections !== this.lastMaxConnections) {
+        this.lastEntityCount = currentEntityCount;
+        this.lastMaxConnections = currentMaxConnections;
+        this.createAutomaticScenarios();
+      }
     }, { allowSignalWrites: true });
+  }
+
+  ngOnInit(): void {
+    // Initialize on component load
+    this.lastEntityCount = this.allEntities().length;
+    this.lastMaxConnections = this.calculateMaxConnections();
+  }
+
+  private calculateMaxConnections(): number {
+    const entities = this.allEntities();
+    const clientConfigs = this.configService.clientConfigs();
+    let maxConnections = 1;
+
+    entities.forEach(entity => {
+      if (!entity.originRepository) return;
+
+      const client = clientConfigs.find(c =>
+        c.stores.some(store => store.repository === entity.originRepository)
+      );
+
+      if (client) {
+        maxConnections = Math.max(maxConnections, client.stores.length);
+      }
+    });
+
+    return maxConnections;
   }
 
   private updatePrincipalScenario(): void {
@@ -70,6 +110,82 @@ export class ConnectionGroupsStepComponent {
 
     // Use the new, safe method to prevent infinite loops.
     this.configService.setPrincipalScenario(principalScenario);
+  }
+
+  private createAutomaticScenarios(): void {
+    const entities = this.allEntities();
+    const clientConfigs = this.configService.clientConfigs();
+
+    // Map each entity to its client and get connection counts
+    const entityClientMap = new Map<string, { clientName: string, connectionCount: number }>();
+    let maxConnections = 1; // At least 1 (the principal group)
+
+    entities.forEach(entity => {
+      if (!entity.originRepository) return;
+
+      // Find which client this entity belongs to
+      const client = clientConfigs.find(c =>
+        c.stores.some(store => store.repository === entity.originRepository)
+      );
+
+      if (client) {
+        const connectionCount = client.stores.length;
+        entityClientMap.set(entity.name, {
+          clientName: client.name,
+          connectionCount
+        });
+        maxConnections = Math.max(maxConnections, connectionCount);
+      }
+    });
+
+    // Create automatic scenarios for connections beyond the first
+    const currentScenarios = this.scenarios();
+    const newScenarios: Scenario[] = [currentScenarios[0]]; // Keep principal scenario
+
+    // Keep existing manual scenarios (non-readonly)
+    const manualScenarios = currentScenarios.filter(s => !s.isReadOnly);
+
+    // Create automatic scenarios for each additional connection
+    for (let i = 2; i <= maxConnections; i++) {
+      const assignments = new Map<string, string>();
+
+      entities.forEach(entity => {
+        const entityClient = entityClientMap.get(entity.name);
+        if (!entityClient) return;
+
+        // Find the client config
+        const client = clientConfigs.find(c => c.name === entityClient.clientName);
+        if (!client) return;
+
+        // Assign the i-th connection if it exists, otherwise use the last available
+        const connectionIndex = Math.min(i - 1, client.stores.length - 1);
+        const connection = client.stores[connectionIndex];
+
+        if (connection) {
+          assignments.set(entity.name, connection.repository);
+        }
+      });
+
+      const autoScenario: Scenario = {
+        id: i,
+        name: `Grupo ${i}`,
+        isReadOnly: false, // Automatic groups can be modified
+        assignments
+      };
+
+      newScenarios.push(autoScenario);
+    }
+
+    // Add back manual scenarios with adjusted IDs
+    manualScenarios.forEach(ms => {
+      newScenarios.push({
+        ...ms,
+        id: newScenarios.length + 1,
+        name: `Grupo ${newScenarios.length + 1}`
+      });
+    });
+
+    this.configService.updateScenarios(newScenarios);
   }
 
   addScenario(): void {

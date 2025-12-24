@@ -73,3 +73,65 @@ mat-card {
   margin-top: 0;
   margin-bottom: 1rem;
 }
+
+.current-clients {
+  padding: 1.5rem;
+  background: #e8f5e9;
+  border-radius: 8px;
+}
+
+.current-clients h4 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #2e7d32;
+}
+
+.clients-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.client-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fff;
+  border: 2px solid #4caf50;
+  border-radius: 24px;
+  padding: 0.5rem 0.75rem;
+  font-weight: 500;
+  color: #1b5e20;
+}
+
+.client-chip span {
+  font-size: 1rem;
+}
+
+.client-chip .remove-btn {
+  width: 24px;
+  height: 24px;
+  line-height: 24px;
+  margin: 0;
+  padding: 0;
+}
+
+.client-chip .remove-btn mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.manual-input form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

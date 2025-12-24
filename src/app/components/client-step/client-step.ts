@@ -25,7 +25,7 @@ export class ClientStepComponent implements OnInit {
   private fb = inject(FormBuilder);
 
   clientForm: FormGroup;
-  selectedClientId = '';
+  selectedClientIds: string[] = []; // Changed to array for multi-select
   showManualInput = false;
 
   constructor() {
@@ -36,12 +36,11 @@ export class ClientStepComponent implements OnInit {
 
   ngOnInit() {
     this.configService.loadClientConfigsFromLocalStorage();
-    // Si ya hay un cliente en la config, actualizar el formulario
-    const currentClient = this.configService.config().client;
-    if (currentClient) {
-      this.clientForm.patchValue({ clientName: currentClient });
+    // Si ya hay clientes en la config, actualizar el formulario
+    const currentClients = this.configService.config().clients;
+    if (currentClients && currentClients.length > 0) {
+      // No need to patch form for multiple clients display
       this.clientForm.markAsTouched();
-      this.showManualInput = true;
     }
 
     // Suscribirse a cambios en la configuración para mantener el form sincronizado
@@ -49,9 +48,8 @@ export class ClientStepComponent implements OnInit {
   }
 
   updateFormValidity() {
-    const clientName = this.configService.config().client;
-    if (clientName) {
-      this.clientForm.patchValue({ clientName: clientName }, { emitEvent: false });
+    const clients = this.configService.config().clients;
+    if (clients && clients.length > 0) {
       this.clientForm.markAsTouched();
     }
   }
@@ -60,41 +58,57 @@ export class ClientStepComponent implements OnInit {
     return this.configService.clientConfigs();
   }
 
-  get clientName(): string {
-    return this.configService.config().client;
+  get selectedClients(): string[] {
+    return this.configService.config().clients;
   }
 
-  selectClient() {
-    if (this.selectedClientId) {
-      this.configService.loadClientConfig(this.selectedClientId);
+  get hasClients(): boolean {
+    return this.configService.config().clients.length > 0;
+  }
+
+  selectClients() {
+    if (this.selectedClientIds && this.selectedClientIds.length > 0) {
+      this.selectedClientIds.forEach(id => {
+        this.configService.loadClientConfig(id);
+      });
       this.updateFormValidity();
-      this.selectedClientId = '';
+      this.selectedClientIds = [];
     }
   }
 
   setManualClient() {
     const clientName = this.clientForm.get('clientName')?.value;
     if (clientName?.trim()) {
-      this.configService.updateClient(clientName.trim());
+      this.configService.addClient(clientName.trim());
+      this.clientForm.reset();
+      this.showManualInput = false;
     }
   }
 
   toggleManualInput() {
     this.showManualInput = !this.showManualInput;
     if (this.showManualInput) {
-      this.clientForm.patchValue({ clientName: this.clientName });
+      this.clientForm.reset();
     }
   }
 
-  changeClient() {
-    this.configService.updateClient('');
+  removeClient(clientName: string) {
+    this.configService.removeClient(clientName);
+    // Optionally clear origins if no more clients
+    if (this.configService.config().clients.length === 0) {
+      this.configService.updateOrigins([]);
+    }
+  }
+
+  clearAllClients() {
+    this.configService.updateClients([]);
     this.configService.updateOrigins([]);
     this.showManualInput = false;
     this.clientForm.reset();
-    this.selectedClientId = '';
+    this.selectedClientIds = [];
   }
 
   isValid(): boolean {
-    return this.clientForm.valid && this.configService.config().client !== '';
+    return this.configService.config().clients.length > 0;
   }
 }

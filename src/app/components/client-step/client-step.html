@@ -1,35 +1,49 @@
 <mat-card>
   <mat-card-header>
     <mat-card-title>Client Information</mat-card-title>
-    <mat-card-subtitle>Select a configured client or enter a new one</mat-card-subtitle>
+    <mat-card-subtitle>Select one or more configured clients or add new ones</mat-card-subtitle>
   </mat-card-header>
   <mat-card-content>
-    @if (clientName) {
-      <div class="current-client">
-        <h4>Cliente Seleccionado</h4>
-        <p class="selected-client-name">{{ clientName }}</p>
-        <button mat-raised-button color="accent" (click)="changeClient()">
-          <mat-icon>edit</mat-icon> Cambiar Cliente
-        </button>
+    @if (hasClients) {
+      <div class="current-clients">
+        <h4>Clientes Seleccionados ({{ selectedClients.length }})</h4>
+        <div class="clients-list">
+          @for (client of selectedClients; track client) {
+            <div class="client-chip">
+              <span>{{ client }}</span>
+              <button mat-icon-button (click)="removeClient(client)" class="remove-btn">
+                <mat-icon>close</mat-icon>
+              </button>
+            </div>
+          }
+        </div>
+        <div class="action-buttons">
+          <button mat-raised-button color="accent" (click)="toggleManualInput()">
+            <mat-icon>add</mat-icon> Agregar Otro Cliente
+          </button>
+          <button mat-button color="warn" (click)="clearAllClients()">
+            <mat-icon>clear_all</mat-icon> Limpiar Todos
+          </button>
+        </div>
       </div>
     } @else {
       @if (clients.length > 0 && !showManualInput) {
         <div class="client-selector">
-          <h4>Seleccionar Cliente Configurado</h4>
+          <h4>Seleccionar Clientes Configurados</h4>
           <div class="selector-row">
             <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Cliente</mat-label>
-              <mat-select [(ngModel)]="selectedClientId">
+              <mat-label>Clientes</mat-label>
+              <mat-select [(ngModel)]="selectedClientIds" multiple>
                 @for (client of clients; track client.id) {
                   <mat-option [value]="client.id">
                     {{ client.name }} - {{ client.stores.length }} tienda(s)
                   </mat-option>
                 }
               </mat-select>
-              <mat-hint>Selecciona un cliente para cargar su nombre y orígenes</mat-hint>
+              <mat-hint>Selecciona uno o más clientes para cargar sus nombres y orígenes</mat-hint>
             </mat-form-field>
-            <button mat-raised-button color="primary" (click)="selectClient()"
-                    [disabled]="!selectedClientId">
+            <button mat-raised-button color="primary" (click)="selectClients()"
+                    [disabled]="!selectedClientIds || selectedClientIds.length === 0">
               <mat-icon>check</mat-icon> Seleccionar
             </button>
           </div>
@@ -47,13 +61,16 @@
             <mat-form-field appearance="outline" class="full-width">
               <mat-label>Client Name</mat-label>
               <input matInput formControlName="clientName"
-                     placeholder="e.g., MAXPOINT_LEGACY"
-                     (blur)="setManualClient()">
+                     placeholder="e.g., MAXPOINT_LEGACY">
               <mat-hint>Ingresa un identificador único para este cliente</mat-hint>
               @if (clientForm.get('clientName')?.invalid && clientForm.get('clientName')?.touched) {
                 <mat-error>El nombre del cliente es obligatorio</mat-error>
               }
             </mat-form-field>
+            <button mat-raised-button color="primary" (click)="setManualClient()"
+                    [disabled]="clientForm.invalid">
+              <mat-icon>add</mat-icon> Agregar Cliente
+            </button>
           </form>
           @if (clients.length > 0) {
             <button mat-button (click)="toggleManualInput()">

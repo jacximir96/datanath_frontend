@@ -55,7 +55,8 @@ export class OriginsStepComponent implements OnInit {
   }
 
   get clientName(): string {
-    return this.configService.config().client;
+    const clients = this.configService.config().clients;
+    return clients && clients.length > 0 ? clients.join(', ') : '';
   }
 
   get clients(): ClientConfig[] {

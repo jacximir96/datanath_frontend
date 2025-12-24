@@ -15,7 +15,7 @@ export interface Scenario {
 })
 export class ConfigService {
   private configSignal = signal<DataConfiguration>({
-    client: '',
+    clients: [], // Changed from client: '' to support multiple clients
     origins: [],
     entities: [],
     entityGroups: [], // Initialize new property
@@ -76,8 +76,23 @@ export class ConfigService {
     });
   }
 
-  updateClient(client: string) {
-    this.configSignal.update(config => ({ ...config, client }));
+  // Updated methods to handle multiple clients
+  updateClients(clients: string[]) {
+    this.configSignal.update(config => ({ ...config, clients }));
+  }
+
+  addClient(clientName: string) {
+    this.configSignal.update(config => ({
+      ...config,
+      clients: [...config.clients, clientName]
+    }));
+  }
+
+  removeClient(clientName: string) {
+    this.configSignal.update(config => ({
+      ...config,
+      clients: config.clients.filter(c => c !== clientName)
+    }));
   }
 
   updateOrigins(origins: Origin[]) {
@@ -167,6 +182,14 @@ export class ConfigService {
       config.entityGroups = [];
     }
 
+    // Migration logic: convert old 'client' (string) to 'clients' (array)
+    if ((config as any).client && typeof (config as any).client === 'string') {
+      config.clients = [(config as any).client];
+      delete (config as any).client;
+    } else if (!config.clients) {
+      config.clients = [];
+    }
+
     this.configSignal.set(config);
   }
 
@@ -178,7 +201,7 @@ export class ConfigService {
 
       this.configSignal.set({
 
-        client: '',
+        clients: [], // Changed from client: ''
 
         origins: [],
 
@@ -411,7 +434,7 @@ export class ConfigService {
 
         const exportConfig: any = {
 
-          client: config.client,
+          clients: config.clients, // Changed from client to clients
 
           origins: newOrigins,
 
@@ -449,7 +472,7 @@ export class ConfigService {
 
         const exportConfig: any = {
 
-          client: config.client,
+          clients: config.clients, // Changed from client to clients
 
           origins: processedOrigins,
 
@@ -562,11 +585,27 @@ export class ConfigService {
   loadClientConfig(id: string) {
     const clientConfig = this.clientConfigsSignal().find(c => c.id === id);
     if (clientConfig) {
-      this.configSignal.update(config => ({
-        ...config,
-        client: clientConfig.name,
-        origins: clientConfig.stores
-      }));
+      this.configSignal.update(config => {
+        // Add client if not already in the list
+        const clients = config.clients.includes(clientConfig.name)
+          ? config.clients
+          : [...config.clients, clientConfig.name];
+
+        // Add origins from this client
+        const newOrigins = clientConfig.stores.filter(store =>
+          !config.origins.some(o =>
+            o.servidor === store.servidor &&
+            o.puerto === store.puerto &&
+            o.repository === store.repository
+          )
+        );
+
+        return {
+          ...config,
+          clients,
+          origins: [...config.origins, ...newOrigins]
+        };
+      });
     }
   }
 
