@@ -142,10 +142,7 @@ export class ConnectionGroupsStepComponent implements OnInit {
     const currentScenarios = this.scenarios();
     const newScenarios: Scenario[] = [currentScenarios[0]]; // Keep principal scenario
 
-    // Keep existing manual scenarios (non-readonly)
-    const manualScenarios = currentScenarios.filter(s => !s.isReadOnly);
-
-    // Create automatic scenarios for each additional connection
+    // Create automatic scenarios for each additional connection (2 to maxConnections)
     for (let i = 2; i <= maxConnections; i++) {
       const assignments = new Map<string, string>();
 
@@ -176,16 +173,10 @@ export class ConnectionGroupsStepComponent implements OnInit {
       newScenarios.push(autoScenario);
     }
 
-    // Add back manual scenarios with adjusted IDs
-    manualScenarios.forEach(ms => {
-      newScenarios.push({
-        ...ms,
-        id: newScenarios.length + 1,
-        name: `Grupo ${newScenarios.length + 1}`
-      });
-    });
-
-    this.configService.updateScenarios(newScenarios);
+    // Only update if the number of scenarios changed (prevent unnecessary updates)
+    if (currentScenarios.length !== newScenarios.length) {
+      this.configService.updateScenarios(newScenarios);
+    }
   }
 
   addScenario(): void {
