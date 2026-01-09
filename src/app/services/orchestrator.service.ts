@@ -137,6 +137,64 @@ export class OrchestratorService {
     );
   }
 
+  async sendMultipleRequirements(jsonString: string, onProgress?: (current: number, total: number) => void): Promise<any[]> {
+    if (!this.isTokenValid()) {
+      throw new Error('Token inválido o expirado. Por favor, inicie sesión nuevamente.');
+    }
+
+    // Separar los JSONs por el delimitador
+    const requirements = jsonString.split('---REQUIREMENT---').map(json => json.trim()).filter(json => json.length > 0);
+    const total = requirements.length;
+    const results: any[] = [];
+    const errors: any[] = [];
+
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.token()}`,
+      'Content-Type': 'application/json',
+      'accept': '*/*'
+    });
+
+    // Enviar uno por uno
+    for (let i = 0; i < requirements.length; i++) {
+      const config = JSON.parse(requirements[i]);
+      const clientName = config.client || 'Unknown Client';
+      const groupId = config.origins[0]?.groupId || `Req ${i + 1}`;
+
+      // Notificar progreso
+      if (onProgress) {
+        onProgress(i + 1, total);
+      }
+
+      try {
+        const response = await this.http.post(`${this.apiUrl}/orquestador`, config, { headers }).toPromise();
+        results.push({
+          index: i + 1,
+          groupId: groupId,
+          clientName: clientName,
+          success: true,
+          response: response
+        });
+      } catch (error) {
+        errors.push({
+          index: i + 1,
+          groupId: groupId,
+          clientName: clientName,
+          success: false,
+          error: error
+        });
+        results.push({
+          index: i + 1,
+          groupId: groupId,
+          clientName: clientName,
+          success: false,
+          error: error
+        });
+      }
+    }
+
+    return results;
+  }
+
   isTokenValid(): boolean {
     const token = this.token();
     const expiry = this.tokenExpiry();

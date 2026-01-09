@@ -42,7 +42,7 @@ export class OriginsStepComponent implements OnInit {
     adapter: 'SqlServerSP'
   });
 
-  adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal'];
+  adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal', 'MongoSrv'];
   selectedClientId = '';
   showManualAdd = false;
 

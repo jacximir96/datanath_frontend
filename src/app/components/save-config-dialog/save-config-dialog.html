@@ -1,7 +1,7 @@
 <div class="dialog-container">
   <div class="dialog-header">
-    <mat-icon class="success-icon">bookmark_add</mat-icon>
-    <h2 mat-dialog-title>Guardar Configuración</h2>
+    <mat-icon class="success-icon">{{ isUpdate ? 'edit' : 'bookmark_add' }}</mat-icon>
+    <h2 mat-dialog-title>{{ isUpdate ? 'Actualizar Configuración' : 'Guardar Configuración' }}</h2>
   </div>
 
   <mat-dialog-content>
@@ -9,7 +9,7 @@
       ¡Excelente! Tu configuración se envió correctamente al orquestador.
     </p>
     <p class="dialog-submessage">
-      Guárdala para ejecutarla nuevamente con un solo click en el futuro.
+      {{ isUpdate ? 'Actualiza el nombre si lo deseas o mantén el actual.' : 'Guárdala para ejecutarla nuevamente con un solo click en el futuro.' }}
     </p>
 
     <mat-form-field appearance="outline" class="full-width">
@@ -25,11 +25,11 @@
   <mat-dialog-actions align="end">
     <button mat-button (click)="onCancel()">
       <mat-icon>close</mat-icon>
-      No guardar
+      {{ isUpdate ? 'Cancelar' : 'No guardar' }}
     </button>
     <button mat-raised-button color="primary" (click)="onSave()" [disabled]="!configName.trim()">
-      <mat-icon>save</mat-icon>
-      Guardar
+      <mat-icon>{{ isUpdate ? 'update' : 'save' }}</mat-icon>
+      {{ isUpdate ? 'Actualizar' : 'Guardar' }}
     </button>
   </mat-dialog-actions>
 </div>

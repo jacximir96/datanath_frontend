@@ -2,6 +2,47 @@
   <h2>Definir Grupos de Conexión (Escenarios)</h2>
   <p>El Grupo Principal muestra la configuración actual. Puede crear otros grupos (escenarios) y asignarles diferentes conexiones arrastrando un origen desde la paleta de la izquierda.</p>
 
+  <!-- NEW: Store Selection Section -->
+  @if (clientsWithStores().length > 0) {
+    <div class="stores-section">
+      <h3>
+        <mat-icon>category</mat-icon>
+        Configuración de Items del Catálogo
+      </h3>
+      <p>Los items están seleccionados por defecto. Puede deseleccionar los que NO desee incluir. Los grupos se crean automáticamente.</p>
+
+      @for (clientWithStores of clientsWithStores(); track clientWithStores.client.id) {
+        <mat-card class="client-stores-card">
+          <mat-card-header>
+            <mat-card-title>{{ clientWithStores.client.name }}</mat-card-title>
+            <mat-card-subtitle>
+              {{ selectedStoresForGroups().size }} de {{ clientWithStores.stores.length }} items seleccionados
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="stores-list">
+              @for (store of clientWithStores.stores; track store.id) {
+                <div class="store-item" (click)="toggleStoreSelection(store.id)" [class.selected]="isStoreSelected(store.id)">
+                  <mat-icon>{{ isStoreSelected(store.id) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                  <span class="store-code">{{ store.code }}</span>
+                  <span class="store-name">{{ store.name }}</span>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-button (click)="selectAllStoresForClient(clientWithStores.client.id)">
+              <mat-icon>done_all</mat-icon> Seleccionar Todos
+            </button>
+            <button mat-button (click)="deselectAllStoresForClient(clientWithStores.client.id)">
+              <mat-icon>clear</mat-icon> Deseleccionar Todos
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      }
+    </div>
+  }
+
   <div class="workspace">
     <!-- Connections Palette -->
     <div class="palette-container">

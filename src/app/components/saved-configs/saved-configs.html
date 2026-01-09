@@ -30,7 +30,7 @@
             <div class="config-info">
               <mat-chip class="info-chip">
                 <mat-icon>person</mat-icon>
-                {{ config.config.clients?.join(', ') || 'Sin cliente' }}
+                {{ config.config.clients.join(', ') || 'Sin cliente' }}
               </mat-chip>
               <mat-chip class="info-chip">
                 <mat-icon>storage</mat-icon>
@@ -48,6 +48,19 @@
                 <p><strong>Última ejecución:</strong> {{ formatDate(config.lastUsed) }}</p>
               }
             </div>
+
+            <!-- Vista previa del JSON -->
+            @if (previewConfigId === config.id && previewJsonData) {
+              <div class="json-preview">
+                <div class="json-preview-header">
+                  <h4>Vista Previa JSON de Salida</h4>
+                  <button mat-icon-button (click)="closePreview()">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                </div>
+                <pre class="json-output">{{ previewJsonData }}</pre>
+              </div>
+            }
           </mat-card-content>
           <mat-card-actions>
             <button mat-raised-button color="primary" (click)="executeConfig(config)"
@@ -61,6 +74,10 @@
                   <span>Ejecutar</span>
                 </ng-container>
               }
+            </button>
+            <button mat-button (click)="previewJson(config)">
+              <mat-icon>visibility</mat-icon>
+              Ver JSON
             </button>
             <button mat-button (click)="loadConfig(config)">
               <mat-icon>edit</mat-icon>

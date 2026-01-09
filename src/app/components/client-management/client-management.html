@@ -24,11 +24,22 @@
                 <mat-card-subtitle>{{ client.description }}</mat-card-subtitle>
               </mat-card-header>
               <mat-card-content>
-                <p><strong>Tiendas configuradas:</strong> {{ client.stores.length }}</p>
+                <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+                  <p><strong>Conexiones:</strong> {{ client.stores.length }}</p>
+                  @if (getTotalItemsForClient(client) > 0) {
+                    <mat-chip>
+                      <mat-icon style="font-size: 16px; height: 16px; width: 16px;">category</mat-icon>
+                      {{ getTotalItemsForClient(client) }} items del catálogo configurados
+                    </mat-chip>
+                  }
+                </div>
+
+                <!-- Conexiones con Items -->
                 <mat-expansion-panel>
                   <mat-expansion-panel-header>
                     <mat-panel-title>
-                      Ver tiendas
+                      <mat-icon>storage</mat-icon>
+                      Ver conexiones ({{ client.stores.length }})
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="stores-list">
@@ -37,6 +48,29 @@
                         <p><strong>Servidor:</strong> {{ store.servidor }}</p>
                         <p><strong>Repository:</strong> {{ store.repository }}</p>
                         <p><strong>Adapter:</strong> {{ store.adapter }}</p>
+
+                        @if (store.associatedStores && store.associatedStores.length > 0) {
+                          <mat-divider style="margin: 8px 0;"></mat-divider>
+                          <p style="margin: 8px 0 4px 0;">
+                            <mat-icon style="font-size: 16px; height: 16px; width: 16px; vertical-align: middle; color: #1976d2;">category</mat-icon>
+                            <strong>Items del catálogo ({{ store.associatedStores.length }}):</strong>
+                          </p>
+                          <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;">
+                            @for (storeId of store.associatedStores; track storeId) {
+                              @if (getStoreById(storeId); as item) {
+                                <mat-chip style="font-size: 11px; height: 24px; min-height: 24px;">
+                                  {{ item.code }}
+                                </mat-chip>
+                              }
+                            }
+                          </div>
+                          @if (store.storeFilterField) {
+                            <p style="font-size: 0.85em; color: #666; margin: 4px 0 0 0;">
+                              <mat-icon style="font-size: 14px; height: 14px; width: 14px; vertical-align: middle;">filter_alt</mat-icon>
+                              Campo filtro: <strong>{{ store.storeFilterField }}</strong>
+                            </p>
+                          }
+                        }
                       </div>
                     }
                   </div>
@@ -62,16 +96,67 @@
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Nombre del Cliente</mat-label>
-          <input matInput [(ngModel)]="clientForm().name" placeholder="e.g., MAXPOINT_LEGACY">
+          <input matInput [ngModel]="clientForm().name" (ngModelChange)="updateClientName($event)" placeholder="e.g., MAXPOINT_LEGACY">
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
           <mat-label>Descripción</mat-label>
-          <textarea matInput [(ngModel)]="clientForm().description" rows="2"
+          <textarea matInput [ngModel]="clientForm().description" (ngModelChange)="updateClientDescription($event)" rows="2"
                     placeholder="Describe este cliente..."></textarea>
         </mat-form-field>
 
-        <h4>Tiendas / Orígenes</h4>
+        <mat-divider style="margin: 24px 0;"></mat-divider>
+
+        <h4>
+          <mat-icon>schema</mat-icon>
+          Tipo de Estructura de las Conexiones
+        </h4>
+        <p class="subtitle">Define si todas las conexiones de este cliente tienen la misma estructura o son diferentes.</p>
+
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Estructura de las Conexiones</mat-label>
+          <mat-select [value]="clientForm().structureType" (selectionChange)="updateStructureType($event.value)" required>
+            <mat-select-trigger>
+              @if (clientForm().structureType === 'same') {
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px; color: #4caf50; vertical-align: middle; margin-right: 8px;">done_all</mat-icon>
+                <span>Misma Estructura</span>
+              } @else {
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px; color: #ff9800; vertical-align: middle; margin-right: 8px;">difference</mat-icon>
+                <span>Estructuras Diferentes</span>
+              }
+            </mat-select-trigger>
+            <mat-option value="same">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px; color: #4caf50;">done_all</mat-icon>
+                <div>
+                  <strong>Misma Estructura</strong>
+                  <div style="font-size: 0.85em; color: #666;">Todas las conexiones comparten el mismo esquema (ej: 500 tiendas idénticas)</div>
+                </div>
+              </div>
+            </mat-option>
+            <mat-option value="different">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <mat-icon style="font-size: 20px; width: 20px; height: 20px; color: #ff9800;">difference</mat-icon>
+                <div>
+                  <strong>Estructuras Diferentes</strong>
+                  <div style="font-size: 0.85em; color: #666;">Cada conexión tiene su propio esquema (ej: BD Operacional, Analytics, Legacy)</div>
+                </div>
+              </div>
+            </mat-option>
+          </mat-select>
+          <mat-hint>
+            @if (clientForm().structureType === 'same') {
+              Las entidades se consultarán desde una conexión y se aplicarán a todas
+            } @else {
+              Podrás seleccionar de qué conexión obtener entidades en el constructor
+            }
+          </mat-hint>
+        </mat-form-field>
+
+        <mat-divider style="margin: 24px 0;"></mat-divider>
+
+        <h4>Conexiones / Orígenes</h4>
+        <p class="subtitle">Configura las conexiones a bases de datos. Cada conexión puede tener sus propios items del catálogo asociados.</p>
 
         @if (clientForm().stores.length > 0) {
           <mat-accordion>
@@ -88,6 +173,39 @@
                   <p><strong>User:</strong> {{ store.user }}</p>
                   <p><strong>Repository:</strong> {{ store.repository }}</p>
                   <p><strong>Adapter:</strong> {{ store.adapter }}</p>
+
+                  @if (store.associatedStores && store.associatedStores.length > 0) {
+                    <mat-divider style="margin: 12px 0;"></mat-divider>
+                    <p><strong>
+                      <mat-icon style="font-size: 18px; height: 18px; width: 18px; vertical-align: middle; color: #1976d2;">category</mat-icon>
+                      Items del catálogo ({{ store.associatedStores.length }}):
+                    </strong></p>
+                    <mat-chip-set>
+                      @for (storeId of store.associatedStores; track storeId) {
+                        @if (getStoreById(storeId); as item) {
+                          <mat-chip>{{ item.code }} - {{ item.name }}</mat-chip>
+                        }
+                      }
+                    </mat-chip-set>
+                    @if (store.storeFilterField) {
+                      <p style="margin-top: 8px;"><small>
+                        <mat-icon style="font-size: 14px; height: 14px; width: 14px; vertical-align: middle;">filter_alt</mat-icon>
+                        Campo filtro: <strong>{{ store.storeFilterField }}</strong>
+                      </small></p>
+                    }
+                  }
+
+                  @if (store._internalStores) {
+                    <mat-divider style="margin: 12px 0;"></mat-divider>
+                    <p><strong>🏪 Tiendas separadas ({{ store._internalStores.storeIds.length }}):</strong></p>
+                    <mat-chip-set>
+                      @for (storeId of store._internalStores.storeIds; track storeId) {
+                        <mat-chip>{{ storeId }}</mat-chip>
+                      }
+                    </mat-chip-set>
+                    <p style="margin-top: 8px;"><small>Campo: {{ store._internalStores.filterField }}</small></p>
+                  }
+
                   <div class="store-actions">
                     <button mat-raised-button color="primary" (click)="editStore($index)">
                       <mat-icon>edit</mat-icon> Editar
@@ -107,37 +225,108 @@
           <div class="store-form">
             <mat-form-field appearance="outline">
               <mat-label>Servidor</mat-label>
-              <input matInput [(ngModel)]="newStore().servidor" placeholder="192.168.101.42\sqlexpress">
+              <input matInput [ngModel]="newStore().servidor" (ngModelChange)="updateNewStoreField('servidor', $event)" placeholder="192.168.101.42\sqlexpress">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Puerto</mat-label>
-              <input matInput [(ngModel)]="newStore().puerto" placeholder="1433">
+              <input matInput [ngModel]="newStore().puerto" (ngModelChange)="updateNewStoreField('puerto', $event)" placeholder="1433">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Usuario</mat-label>
-              <input matInput [(ngModel)]="newStore().user" placeholder="sa">
+              <input matInput [ngModel]="newStore().user" (ngModelChange)="updateNewStoreField('user', $event)" placeholder="sa">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Contraseña</mat-label>
-              <input matInput type="password" [(ngModel)]="newStore().password">
+              <input matInput type="password" [ngModel]="newStore().password" (ngModelChange)="updateNewStoreField('password', $event)">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Repository/Database</mat-label>
-              <input matInput [(ngModel)]="newStore().repository" placeholder="MAXPOINT_K003">
+              <input matInput [ngModel]="newStore().repository" (ngModelChange)="updateNewStoreField('repository', $event)" placeholder="MAXPOINT_K003">
             </mat-form-field>
 
             <mat-form-field appearance="outline">
               <mat-label>Adapter</mat-label>
-              <mat-select [(ngModel)]="newStore().adapter">
+              <mat-select [value]="newStore().adapter" (selectionChange)="updateNewStoreField('adapter', $event.value)">
                 @for (adapter of adapters; track adapter) {
                   <mat-option [value]="adapter">{{ adapter }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
+
+            <mat-divider style="margin: 20px 0;"></mat-divider>
+
+            <h5>
+              <mat-icon>category</mat-icon>
+              Items del Catálogo para esta Conexión (Opcional)
+            </h5>
+            <p class="subtitle" style="font-size: 0.9em; margin-bottom: 12px;">
+              Selecciona items del catálogo si esta conexión requiere separación por tiendas/sucursales.
+            </p>
+
+            @if (loadingConnections()) {
+              <div style="display: flex; align-items: center; gap: 12px; padding: 12px; background: #f5f5f5; border-radius: 4px; margin-bottom: 16px;">
+                <mat-spinner diameter="24"></mat-spinner>
+                <span style="color: #666;">Cargando conexiones...</span>
+              </div>
+            }
+
+            @if (availableConnections().length > 0) {
+              <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <button mat-stroked-button color="primary" (click)="selectAllStoresForConnection()" type="button">
+                  <mat-icon>done_all</mat-icon> Seleccionar Todos
+                </button>
+                <button mat-stroked-button (click)="deselectAllStoresForConnection()" type="button">
+                  <mat-icon>clear</mat-icon> Deseleccionar Todos
+                </button>
+              </div>
+
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Items para esta Conexión</mat-label>
+                <mat-select [ngModel]="selectedStoresForConnection()" (ngModelChange)="selectedStoresForConnection.set($event)" multiple>
+                  <mat-option>
+                    <ngx-mat-select-search
+                      [formControl]="storeSearchControl"
+                      placeholderLabel="Buscar item..."
+                      noEntriesFoundLabel="No se encontraron items">
+                    </ngx-mat-select-search>
+                  </mat-option>
+                  @for (store of filteredStores(); track store.id) {
+                    <mat-option [value]="store.id">
+                      <strong>{{ store.code }}</strong> - {{ store.name }}
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>
+                  @if (selectedStoresForConnection().length > 0) {
+                    {{ selectedStoresForConnection().length }} item(s) seleccionado(s)
+                  } @else {
+                    Selecciona items o deja vacío si esta conexión no requiere separación
+                  }
+                </mat-hint>
+              </mat-form-field>
+
+              @if (selectedStoresForConnection().length > 0) {
+                <mat-form-field appearance="outline" class="full-width" style="margin-top: 12px;">
+                  <mat-label>Campo de Filtro</mat-label>
+                  <input matInput [ngModel]="newStore().storeFilterField" (ngModelChange)="updateNewStoreField('storeFilterField', $event)"
+                         placeholder="e.g., restaurant_name, store_id, sucursal_id, codigo">
+                  <mat-hint>Campo en las entidades que contiene el código/identificador del item</mat-hint>
+                </mat-form-field>
+              }
+            } @else {
+              <mat-card style="background: #fff3cd; padding: 16px; margin: 16px 0;">
+                <mat-icon color="warn">warning</mat-icon>
+                <p style="margin: 8px 0 0 0;">
+                  No hay conexiones disponibles en el catálogo. Ve a "Gestión de Catálogos" para verificar.
+                </p>
+              </mat-card>
+            }
+
+            <mat-divider style="margin: 20px 0;"></mat-divider>
 
             <button mat-raised-button color="accent" (click)="addStore()">
               <mat-icon>{{ editingStoreIndex !== null ? 'save' : 'add' }}</mat-icon>

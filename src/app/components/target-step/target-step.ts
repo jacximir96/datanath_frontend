@@ -36,6 +36,7 @@ export class TargetStepComponent {
   newPropertyType = 'text';
 
   dataTypes = ['text', 'number', 'date', 'boolean'];
+  adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal', 'MongoSrv', 'blobStorage'];
 
   get target() {
     return this.configService.config().target;
@@ -93,7 +94,7 @@ export class TargetStepComponent {
 
   isTargetEntityFormValid(): boolean {
     const entity = this.newTargetEntity();
-    return !!(entity.name && entity.toName);
+    return !!entity.name;
   }
 
   isValid(): boolean {

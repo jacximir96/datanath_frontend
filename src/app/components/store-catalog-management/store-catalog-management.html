@@ -1,0 +1,84 @@
+<div class="store-catalog-container">
+  <div class="header">
+    <h2>
+      <mat-icon>category</mat-icon>
+      Gestión de Catálogos
+    </h2>
+    <p class="subtitle">Gestiona el catálogo global de items. Luego podrás asociarlos a los clientes.</p>
+  </div>
+
+  <div class="content">
+    @if (loading()) {
+      <div class="loading-spinner">
+        <mat-spinner diameter="40"></mat-spinner>
+        <p>Cargando conexiones actualizadas...</p>
+      </div>
+    }
+
+    @if (!loading()) {
+      <div class="connections-table-container">
+        <!-- Buscador siempre visible -->
+        <div class="search-container">
+          <mat-form-field appearance="outline" class="search-field">
+            <mat-label>Buscar por código (clientId)</mat-label>
+            <input matInput
+                   [ngModel]="searchInput()"
+                   (ngModelChange)="searchInput.set($event)"
+                   (keyup.enter)="performSearch()"
+                   placeholder="Ej: A001, G008">
+            <mat-icon matPrefix>search</mat-icon>
+            @if (searchTerm()) {
+              <button mat-icon-button matSuffix (click)="clearSearch()" aria-label="Limpiar búsqueda">
+                <mat-icon>close</mat-icon>
+              </button>
+            }
+          </mat-form-field>
+          <button mat-raised-button color="primary" (click)="performSearch()" class="search-button">
+            <mat-icon>search</mat-icon>
+            Buscar
+          </button>
+        </div>
+
+        <!-- Resultados -->
+        @if (availableConnections().length > 0) {
+          <p class="info-text">
+            <mat-icon>info</mat-icon>
+            Mostrando {{ availableConnections().length }} de {{ totalCount() }} conexiones actualizadas (actualización automática diaria a la 1 AM)
+          </p>
+          <table mat-table [dataSource]="availableConnections()" class="connections-table">
+            <ng-container matColumnDef="code">
+              <th mat-header-cell *matHeaderCellDef>Código</th>
+              <td mat-cell *matCellDef="let connection"><strong>{{ connection.clientId }}</strong></td>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>Repositorio</th>
+              <td mat-cell *matCellDef="let connection">{{ connection.repository }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+          </table>
+
+          <mat-paginator
+            [length]="totalCount()"
+            [pageSize]="pageSize()"
+            [pageIndex]="pageIndex()"
+            [pageSizeOptions]="[10, 25, 50, 100]"
+            (page)="onPageChange($event)"
+            showFirstLastButtons>
+          </mat-paginator>
+        } @else {
+          <p class="no-data">
+            <mat-icon>search_off</mat-icon>
+            @if (searchTerm()) {
+              No se encontraron items con el código "{{ searchTerm() }}"
+            } @else {
+              No se encontraron items para este cliente
+            }
+          </p>
+        }
+      </div>
+    }
+  </div>
+</div>

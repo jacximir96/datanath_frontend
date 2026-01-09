@@ -46,6 +46,8 @@
           Configuraciones Guardadas
         } @else if (currentView() === 'client-management') {
           Gestión de Clientes
+        } @else if (currentView() === 'store-catalog') {
+          Gestión de Catálogos
         } @else if (currentView() === 'process-monitor') {
           Monitor de Procesos
         }
@@ -82,6 +84,8 @@
         <app-saved-configs></app-saved-configs>
       } @else if (currentView() === 'client-management') {
         <app-client-management></app-client-management>
+      } @else if (currentView() === 'store-catalog') {
+        <app-store-catalog-management></app-store-catalog-management>
       } @else if (currentView() === 'process-monitor') {
         <app-process-monitor></app-process-monitor>
       }

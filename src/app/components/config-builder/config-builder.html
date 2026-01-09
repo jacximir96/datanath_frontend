@@ -62,7 +62,10 @@
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>
         <span class="spacer"></span>
-        <button mat-raised-button color="accent" (click)="stepper.reset()">Reiniciar</button>
+        <button mat-raised-button color="warn" (click)="resetAll()">
+          <mat-icon>restart_alt</mat-icon>
+          Reiniciar Todo
+        </button>
       </div>
     </mat-step>
   </mat-stepper>

@@ -14,6 +14,7 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { ConfigService } from '../../services/config.service';
 import { OrchestratorService } from '../../services/orchestrator.service';
 import { SaveConfigDialogComponent } from '../save-config-dialog/save-config-dialog';
+import { SendProgressDialogComponent, SendProgressData } from '../send-progress-dialog/send-progress-dialog';
 import { Origin, EntityGroup } from '../../models/config.model';
 
 @Component({
@@ -120,8 +121,22 @@ export class SummaryStepComponent implements OnInit {
   }
 
   private performSend(): void {
-    // Usar el JSON ya procesado y limpio (el mismo que se muestra en la vista)
-    const config = JSON.parse(this.configService.exportJSON());
+    const exportedJson = this.configService.exportJSON();
+
+    // Detectar si hay múltiples requerimientos (separados por ---REQUIREMENT---)
+    const hasMultipleRequirements = exportedJson.includes('---REQUIREMENT---');
+
+    if (hasMultipleRequirements) {
+      // Manejar envío múltiple con diálogo de progreso
+      this.performMultipleSend(exportedJson);
+    } else {
+      // Manejar envío simple (comportamiento original)
+      this.performSingleSend(exportedJson);
+    }
+  }
+
+  private performSingleSend(exportedJson: string): void {
+    const config = JSON.parse(exportedJson);
     this.isSending = true;
 
     this.orchestratorService.sendToOrchestrator(config).subscribe({
@@ -138,16 +153,106 @@ export class SummaryStepComponent implements OnInit {
     });
   }
 
+  private async performMultipleSend(exportedJson: string): Promise<void> {
+    this.isSending = true;
+
+    // Abrir diálogo de progreso
+    const progressData: SendProgressData = {
+      current: 0,
+      total: exportedJson.split('---REQUIREMENT---').filter(s => s.trim().length > 0).length,
+      isComplete: false
+    };
+
+    const dialogRef = this.dialog.open(SendProgressDialogComponent, {
+      width: '500px',
+      disableClose: true,
+      data: progressData
+    });
+
+    try {
+      // Enviar múltiples requerimientos
+      const results = await this.orchestratorService.sendMultipleRequirements(
+        exportedJson,
+        (current: number, total: number) => {
+          // Callback de progreso
+          progressData.current = current;
+          progressData.total = total;
+        }
+      );
+
+      // Actualizar diálogo con resultados
+      progressData.isComplete = true;
+      progressData.results = results;
+      dialogRef.disableClose = false;
+
+      this.isSending = false;
+
+      // Verificar si todos fueron exitosos
+      const allSuccess = results.every(r => r.success);
+      const successCount = results.filter(r => r.success).length;
+
+      if (allSuccess) {
+        this.snackBar.open(
+          `✅ Todos los requerimientos enviados exitosamente (${successCount}/${results.length})`,
+          'Cerrar',
+          { duration: 5000 }
+        );
+        this.promptSaveConfiguration();
+      } else {
+        this.snackBar.open(
+          `⚠️ ${successCount} de ${results.length} requerimientos enviados. Revisa los detalles.`,
+          'Cerrar',
+          { duration: 5000 }
+        );
+      }
+    } catch (error: any) {
+      this.isSending = false;
+      progressData.isComplete = true;
+      dialogRef.disableClose = false;
+
+      this.snackBar.open(
+        'Error al enviar requerimientos: ' + (error.message || 'Error desconocido'),
+        'Cerrar',
+        { duration: 5000 }
+      );
+    }
+  }
+
   private promptSaveConfiguration(): void {
+    const currentLoadedId = this.configService.currentLoadedConfigId();
+    const isUpdate = currentLoadedId !== null;
+
+    // Si es actualización, obtener el nombre actual
+    let currentName = '';
+    if (isUpdate) {
+      const currentConfig = this.configService.savedConfigs().find(c => c.id === currentLoadedId);
+      currentName = currentConfig?.name || '';
+    }
+
     const dialogRef = this.dialog.open(SaveConfigDialogComponent, {
       width: '500px',
-      disableClose: false
+      disableClose: false,
+      data: {
+        isUpdate,
+        currentName
+      }
     });
 
     dialogRef.afterClosed().subscribe(configName => {
       if (configName) {
-        this.configService.saveConfiguration(configName, '');
-        this.snackBar.open('Configuración guardada exitosamente', 'Cerrar', { duration: 3000 });
+        if (isUpdate && currentLoadedId) {
+          // Actualizar configuración existente
+          const updated = this.configService.updateConfiguration(currentLoadedId, configName, '');
+          if (updated) {
+            this.snackBar.open('Configuración actualizada exitosamente', 'Cerrar', { duration: 3000 });
+          } else {
+            this.snackBar.open('Error al actualizar configuración', 'Cerrar', { duration: 3000 });
+          }
+        } else {
+          // Guardar nueva configuración
+          this.configService.saveConfiguration(configName, '');
+          this.snackBar.open('Configuración guardada exitosamente', 'Cerrar', { duration: 3000 });
+        }
       }
     });
   }

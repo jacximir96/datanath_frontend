@@ -48,6 +48,9 @@ export class TransformationStepComponent implements OnInit {
   newOutputFormat = 'json';
   newWrapStructure = '{}';
   useVisualBuilder = true;
+  jsonBuilderKey = 0; // Used to force recreation of json-builder component
+  editingFilterIndex: number | null = null; // Track which filter is being edited
+  initialJsonStructure: any = null; // Initial structure to load in visual builder when editing
 
   // Computed signal que calcula columnas Y metadata al mismo tiempo
   private columnsData = computed(() => {
@@ -61,7 +64,8 @@ export class TransformationStepComponent implements OnInit {
     // Always read the defined properties for all entities
     allEntities.forEach(entity => {
       entity.properties.forEach(prop => {
-        const columnKey = prop.name.includes('.')
+        // Always prefix with entity name unless it already starts with it
+        const columnKey = prop.name.startsWith(`${entity.name}.`)
           ? prop.name
           : `${entity.name}.${prop.name}`;
         if (!columns.includes(columnKey)) {
@@ -357,16 +361,32 @@ export class TransformationStepComponent implements OnInit {
     try {
       const wrapStructure = JSON.parse(this.newWrapStructure);
       const config = this.configService.config();
-      const newFilter: TransformationFilter = {
+      const filterData: TransformationFilter = {
         output_format: this.newOutputFormat,
         wrap_structure: wrapStructure
       };
-      this.configService.updateTransformation({
-        ...config.transformation,
-        filter: [...config.transformation.filter, newFilter]
-      });
+
+      if (this.editingFilterIndex !== null) {
+        // Update existing filter
+        const updatedFilters = [...config.transformation.filter];
+        updatedFilters[this.editingFilterIndex] = filterData;
+        this.configService.updateTransformation({
+          ...config.transformation,
+          filter: updatedFilters
+        });
+        this.editingFilterIndex = null;
+      } else {
+        // Add new filter
+        this.configService.updateTransformation({
+          ...config.transformation,
+          filter: [...config.transformation.filter, filterData]
+        });
+      }
+
       this.newOutputFormat = 'json';
       this.newWrapStructure = '{}';
+      this.initialJsonStructure = null;
+      this.jsonBuilderKey++; // Force recreation of json-builder to reset state
     } catch (e) {
       alert('JSON inválido en wrap_structure');
     }
@@ -378,6 +398,38 @@ export class TransformationStepComponent implements OnInit {
       ...config.transformation,
       filter: config.transformation.filter.filter((_, i) => i !== index)
     });
+  }
+
+  editFilter(index: number) {
+    const config = this.configService.config();
+    const filterToEdit = config.transformation.filter[index];
+
+    if (filterToEdit) {
+      this.editingFilterIndex = index;
+      this.newOutputFormat = filterToEdit.output_format;
+      this.newWrapStructure = JSON.stringify(filterToEdit.wrap_structure, null, 2);
+
+      // Load structure in visual builder
+      this.useVisualBuilder = true;
+      this.initialJsonStructure = filterToEdit.wrap_structure;
+      this.jsonBuilderKey++; // Force recreation to load the new structure
+
+      // Scroll to the form
+      setTimeout(() => {
+        const formElement = document.querySelector('.add-filter-section');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
+    }
+  }
+
+  cancelEdit() {
+    this.editingFilterIndex = null;
+    this.newOutputFormat = 'json';
+    this.newWrapStructure = '{}';
+    this.initialJsonStructure = null;
+    this.jsonBuilderKey++;
   }
 
   // Template methods

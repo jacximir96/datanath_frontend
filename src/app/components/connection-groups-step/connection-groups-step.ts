@@ -2,11 +2,13 @@ import { Component, inject, computed, signal, effect, OnInit } from '@angular/co
 import { CommonModule } from '@angular/common';
 import { ConfigService, Scenario } from '../../services/config.service';
 import { Origin, Entity } from '../../models/config.model';
+import { GraphqlService } from '../../services/graphql.service';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { CdkDrag, CdkDropList, CdkDragDrop } from '@angular/cdk/drag-drop';
+import { environment } from '../../../environments/environment';
 
 @Component({
   selector: 'app-connection-groups-step',
@@ -25,6 +27,7 @@ import { CdkDrag, CdkDropList, CdkDragDrop } from '@angular/cdk/drag-drop';
 })
 export class ConnectionGroupsStepComponent implements OnInit {
   protected configService = inject(ConfigService);
+  private graphqlService = inject(GraphqlService);
 
   readonly scenarios = this.configService.scenarios;
 
@@ -34,10 +37,99 @@ export class ConnectionGroupsStepComponent implements OnInit {
 
   readonly allOrigins = computed(() => this.configService.config().origins);
 
+  // Track selected stores for group generation
+  selectedStoresForGroups = signal<Set<string>>(new Set());
+
+  // GraphQL connections (reemplaza storeCatalog)
+  private readonly clientName = environment.clientName;
+  availableConnections = signal<any[]>([]);
+
+  // Computed: Clients with associated stores that have entities in use
+  // ONLY checks the FIRST entity to determine if catalog items section should appear
+  readonly clientsWithStores = computed(() => {
+    const entities = this.allEntities();
+    const clientConfigs = this.configService.clientConfigs();
+    const graphqlConnections = this.availableConnections();
+
+    const clientsMap = new Map<string, { client: any, stores: any[], connection: any }>();
+
+    // Only check the FIRST entity
+    const firstEntity = entities[0];
+    if (!firstEntity || !firstEntity.originRepository) {
+      return [];
+    }
+
+    const client = clientConfigs.find(c =>
+      c.stores.some(store => store.repository === firstEntity.originRepository)
+    );
+
+    if (client) {
+      // Encontrar la conexión específica que corresponde a este repository
+      const connection = client.stores.find(store => store.repository === firstEntity.originRepository);
+
+      // Si la conexión tiene items del catálogo asociados
+      if (connection && connection.associatedStores && connection.associatedStores.length > 0) {
+        const connectionKey = `${client.id}-${connection.repository}`;
+
+        // Buscar en las conexiones de GraphQL en lugar de localStorage
+        const clientStores = connection.associatedStores
+          .map((storeId: string) => {
+            const conn = graphqlConnections.find(c => c.id === storeId);
+            if (conn) {
+              return {
+                id: conn.id,
+                code: conn.clientId,
+                name: conn.repository,
+                description: conn.clientName
+              };
+            }
+            return undefined;
+          })
+          .filter((s: any) => s !== undefined);
+
+        clientsMap.set(connectionKey, { client, stores: clientStores, connection });
+      }
+    }
+
+    return Array.from(clientsMap.values());
+  });
+
   private lastEntityCount = 0;
   private lastMaxConnections = 0;
+  private lastFixedConnectionSignature = '';
 
   constructor() {
+    // Auto-select stores when clients with stores are detected
+    effect(() => {
+      const clientsWithStores = this.clientsWithStores();
+      if (clientsWithStores.length > 0) {
+        const allStoreIds = new Set<string>();
+        clientsWithStores.forEach(clientWithStores => {
+          clientWithStores.stores.forEach(store => {
+            allStoreIds.add(store.id);
+          });
+        });
+
+        // Only update if different
+        const current = this.selectedStoresForGroups();
+        if (current.size !== allStoreIds.size ||
+            !Array.from(allStoreIds).every(id => current.has(id))) {
+          this.selectedStoresForGroups.set(allStoreIds);
+        }
+      }
+    }, { allowSignalWrites: true });
+
+    // React to changes in selected stores and recreate groups
+    effect(() => {
+      const selectedStores = this.selectedStoresForGroups();
+      const clientsWithStores = this.clientsWithStores();
+
+      // Only recreate if we have clients with stores
+      if (clientsWithStores.length > 0) {
+        this.createStoreBasedGroupsAutomatic();
+      }
+    }, { allowSignalWrites: true });
+
     // Re-enable effect to react to data changes from other steps.
     effect(() => {
       this.updatePrincipalScenario();
@@ -46,10 +138,17 @@ export class ConnectionGroupsStepComponent implements OnInit {
       const currentEntityCount = this.allEntities().length;
       const currentMaxConnections = this.calculateMaxConnections();
 
+      // Create signature of fixedConnection flags to detect changes
+      const currentFixedSignature = this.allEntities()
+        .map(e => `${e.name}:${e.fixedConnection || false}`)
+        .join('|');
+
       if (currentEntityCount !== this.lastEntityCount ||
-          currentMaxConnections !== this.lastMaxConnections) {
+          currentMaxConnections !== this.lastMaxConnections ||
+          currentFixedSignature !== this.lastFixedConnectionSignature) {
         this.lastEntityCount = currentEntityCount;
         this.lastMaxConnections = currentMaxConnections;
+        this.lastFixedConnectionSignature = currentFixedSignature;
         this.createAutomaticScenarios();
       }
     }, { allowSignalWrites: true });
@@ -59,6 +158,32 @@ export class ConnectionGroupsStepComponent implements OnInit {
     // Initialize on component load
     this.lastEntityCount = this.allEntities().length;
     this.lastMaxConnections = this.calculateMaxConnections();
+    this.lastFixedConnectionSignature = this.allEntities()
+      .map(e => `${e.name}:${e.fixedConnection || false}`)
+      .join('|');
+
+    // Load client configs and GraphQL connections
+    this.configService.loadClientConfigsFromLocalStorage();
+    this.loadConnectionsFromGraphQL();
+  }
+
+  private loadConnectionsFromGraphQL() {
+    if (!this.clientName) return;
+
+    // Cargar TODAS las conexiones (sin paginación limitada)
+    this.graphqlService.getConnections(this.clientName, 0, 1000).subscribe({
+      next: (response) => {
+        if (response.data && response.data.getConnections) {
+          const connections = response.data.getConnections.items;
+          this.availableConnections.set(connections);
+          // Sincronizar con config.service para que exportJSON tenga acceso
+          this.configService.setGraphqlConnections(connections);
+        }
+      },
+      error: (error) => {
+        console.error('Error al cargar conexiones en grupos de conexión:', error);
+      }
+    });
   }
 
   private calculateMaxConnections(): number {
@@ -82,6 +207,12 @@ export class ConnectionGroupsStepComponent implements OnInit {
   }
 
   private updatePrincipalScenario(): void {
+    // Skip principal scenario if we have clients with associated stores
+    // (store-based groups will be created instead)
+    if (this.clientsWithStores().length > 0) {
+      return;
+    }
+
     const origins = this.allOrigins();
     const principalAssignments = new Map<string, string>();
 
@@ -113,6 +244,13 @@ export class ConnectionGroupsStepComponent implements OnInit {
   }
 
   private createAutomaticScenarios(): void {
+    // If we have clients with associated stores, create store-based groups instead
+    if (this.clientsWithStores().length > 0) {
+      this.createStoreBasedGroupsAutomatic();
+      return;
+    }
+
+    // Otherwise, use the normal flow (connection-based groups)
     const entities = this.allEntities();
     const clientConfigs = this.configService.clientConfigs();
 
@@ -121,7 +259,9 @@ export class ConnectionGroupsStepComponent implements OnInit {
     let maxConnections = 1; // At least 1 (the principal group)
 
     entities.forEach(entity => {
-      if (!entity.originRepository) return;
+      if (!entity.originRepository) {
+        return;
+      }
 
       // Find which client this entity belongs to
       const client = clientConfigs.find(c =>
@@ -143,23 +283,43 @@ export class ConnectionGroupsStepComponent implements OnInit {
     const newScenarios: Scenario[] = [currentScenarios[0]]; // Keep principal scenario
 
     // Create automatic scenarios for each additional connection (2 to maxConnections)
+    const principalAssignments = currentScenarios[0]?.assignments || new Map();
+
     for (let i = 2; i <= maxConnections; i++) {
       const assignments = new Map<string, string>();
 
       entities.forEach(entity => {
+        // If the entity has a fixed connection, always use the same repository
+        if (entity.fixedConnection) {
+          const principalRepo = principalAssignments.get(entity.name);
+          if (principalRepo) {
+            assignments.set(entity.name, principalRepo);
+          }
+          return; // Skip rotation logic
+        }
+
+        // Otherwise, use rotation logic
         const entityClient = entityClientMap.get(entity.name);
-        if (!entityClient) return;
 
-        // Find the client config
-        const client = clientConfigs.find(c => c.name === entityClient.clientName);
-        if (!client) return;
+        if (entityClient) {
+          // Entity has a known client with multiple connections
+          const client = clientConfigs.find(c => c.name === entityClient.clientName);
+          if (client) {
+            // Assign the i-th connection if it exists, otherwise use the last available
+            const connectionIndex = Math.min(i - 1, client.stores.length - 1);
+            const connection = client.stores[connectionIndex];
 
-        // Assign the i-th connection if it exists, otherwise use the last available
-        const connectionIndex = Math.min(i - 1, client.stores.length - 1);
-        const connection = client.stores[connectionIndex];
-
-        if (connection) {
-          assignments.set(entity.name, connection.repository);
+            if (connection) {
+              assignments.set(entity.name, connection.repository);
+            }
+          }
+        } else {
+          // Entity doesn't have a client in the map, use principal assignment
+          // (This happens when the entity's client only has 1 connection)
+          const principalRepo = principalAssignments.get(entity.name);
+          if (principalRepo) {
+            assignments.set(entity.name, principalRepo);
+          }
         }
       });
 
@@ -173,10 +333,8 @@ export class ConnectionGroupsStepComponent implements OnInit {
       newScenarios.push(autoScenario);
     }
 
-    // Only update if the number of scenarios changed (prevent unnecessary updates)
-    if (currentScenarios.length !== newScenarios.length) {
-      this.configService.updateScenarios(newScenarios);
-    }
+    // Always update scenarios (assignments may have changed even if count is the same)
+    this.configService.updateScenarios(newScenarios);
   }
 
   addScenario(): void {
@@ -197,9 +355,105 @@ export class ConnectionGroupsStepComponent implements OnInit {
       return;
     }
 
+    // If this scenario has a storeFilter, deselect that store
+    if (scenario.storeFilter) {
+      this.selectedStoresForGroups.update(current => {
+        const newSet = new Set(current);
+        newSet.delete(scenario.storeFilter!);
+        return newSet;
+      });
+    }
+
     const currentScenarios = this.scenarios();
     const updatedScenarios = currentScenarios.filter(s => s.id !== scenario.id);
     this.configService.updateScenarios(updatedScenarios);
+  }
+
+  // Store selection methods
+  toggleStoreSelection(storeId: string): void {
+    this.selectedStoresForGroups.update(current => {
+      const newSet = new Set(current);
+      if (newSet.has(storeId)) {
+        newSet.delete(storeId);
+      } else {
+        newSet.add(storeId);
+      }
+      return newSet;
+    });
+  }
+
+  isStoreSelected(storeId: string): boolean {
+    return this.selectedStoresForGroups().has(storeId);
+  }
+
+  selectAllStoresForClient(clientId: string): void {
+    const clientWithStores = this.clientsWithStores().find(c => c.client.id === clientId);
+    if (!clientWithStores) return;
+
+    this.selectedStoresForGroups.update(current => {
+      const newSet = new Set(current);
+      clientWithStores.stores.forEach(store => newSet.add(store.id));
+      return newSet;
+    });
+  }
+
+  deselectAllStoresForClient(clientId: string): void {
+    const clientWithStores = this.clientsWithStores().find(c => c.client.id === clientId);
+    if (!clientWithStores) return;
+
+    this.selectedStoresForGroups.update(current => {
+      const newSet = new Set(current);
+      clientWithStores.stores.forEach(store => newSet.delete(store.id));
+      return newSet;
+    });
+  }
+
+  // Create groups for selected stores AUTOMATICALLY (called from effect)
+  private createStoreBasedGroupsAutomatic(): void {
+    const selectedStores = Array.from(this.selectedStoresForGroups());
+    if (selectedStores.length === 0) {
+      // If no stores selected, clear scenarios
+      this.configService.updateScenarios([]);
+      return;
+    }
+
+    const graphqlConnections = this.availableConnections();
+    const origins = this.allOrigins();
+    const newGroups: Scenario[] = [];
+
+    // Get principal assignments (from first entity's repository)
+    const principalAssignments = new Map<string, string>();
+    this.allEntities().forEach(entity => {
+      let repository = entity.originRepository;
+      if (!repository && origins.length === 1) {
+        repository = origins[0].repository;
+      }
+      if (repository) {
+        principalAssignments.set(entity.name, repository);
+      }
+    });
+
+    // Create one group per selected store
+    selectedStores.forEach((storeId, index) => {
+      // Buscar en las conexiones de GraphQL
+      const connection = graphqlConnections.find(c => c.id === storeId);
+      if (!connection) return;
+
+      const assignments = new Map(principalAssignments); // Copy assignments
+
+      const newGroup: Scenario = {
+        id: index + 1, // Start from 1 (no principal group in this mode)
+        name: `Tienda: ${connection.repository || connection.clientId}`,
+        isReadOnly: false,
+        assignments,
+        storeFilter: storeId // Track which store this group is for
+      };
+
+      newGroups.push(newGroup);
+    });
+
+    // Replace all scenarios with store-based groups
+    this.configService.updateScenarios(newGroups);
   }
 
   // Helper to get the full Origin object for display purposes

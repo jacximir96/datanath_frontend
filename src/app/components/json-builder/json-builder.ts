@@ -43,6 +43,7 @@ export interface ColumnGroup {
 export class JsonBuilderComponent {
   availableColumns = input<string[]>([]);
   columnMetadata = input<Map<string, { isArray: boolean, count: number, sample?: any }>>(new Map());
+  initialStructure = input<any>(null); // Initial JSON structure to load
   structure = output<any>();
 
   rootFields = signal<JsonField[]>([]);
@@ -55,6 +56,14 @@ export class JsonBuilderComponent {
       this.rootFields(); // a dependency on rootFields
       this.debouncedEmitStructure();
     });
+
+    // Load initial structure if provided
+    effect(() => {
+      const initial = this.initialStructure();
+      if (initial && Object.keys(initial).length > 0) {
+        this.loadFromJson(initial);
+      }
+    }, { allowSignalWrites: true });
   }
 
   // Helper para formatear el label de una columna con su metadata
@@ -85,8 +94,9 @@ export class JsonBuilderComponent {
 
     this.availableColumns().forEach(col => {
       const parts = col.split('.');
-      if (parts.length === 2) {
-        const [tableName, columnName] = parts;
+      if (parts.length >= 2) {
+        const tableName = parts[0];
+        const columnName = parts.slice(1).join('.'); // Join remaining parts for nested columns
         if (!groups.has(tableName)) {
           groups.set(tableName, []);
         }
@@ -1007,5 +1017,64 @@ export class JsonBuilderComponent {
         if (action.event) this.onDragLeave(action.event);
         break;
     }
+  }
+
+  // Load structure from JSON object
+  loadFromJson(jsonObj: any) {
+    const fields = this.convertJsonToFields(jsonObj);
+    this.rootFields.set(fields);
+  }
+
+  // Convert JSON object to JsonField array (recursive)
+  private convertJsonToFields(obj: any): JsonField[] {
+    if (!obj || typeof obj !== 'object') {
+      return [];
+    }
+
+    const fields: JsonField[] = [];
+
+    Object.keys(obj).forEach(key => {
+      const value = obj[key];
+      const field: JsonField = {
+        key: key,
+        value: '',
+        type: 'static',
+        originalColumn: undefined
+      };
+
+      if (value === null) {
+        field.type = 'null';
+        field.value = 'null';
+      } else if (Array.isArray(value)) {
+        field.type = 'array';
+        field.children = value.length > 0 && typeof value[0] === 'object'
+          ? this.convertJsonToFields(value[0])
+          : [];
+      } else if (typeof value === 'object') {
+        field.type = 'object';
+        field.children = this.convertJsonToFields(value);
+      } else if (typeof value === 'string') {
+        // Check if it's a column reference (contains a dot like "table.column")
+        if (value.includes('.') && !value.startsWith('expr:')) {
+          field.type = 'column';
+          field.value = value;
+          field.originalColumn = value;
+        } else if (value.startsWith('expr:')) {
+          field.type = 'expression';
+          field.value = value;
+        } else {
+          field.type = 'static';
+          field.value = value;
+        }
+      } else {
+        // Numbers, booleans, etc.
+        field.type = 'static';
+        field.value = String(value);
+      }
+
+      fields.push(field);
+    });
+
+    return fields;
   }
 }

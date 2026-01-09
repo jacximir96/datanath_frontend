@@ -160,3 +160,77 @@ mat-card-content {
 mat-form-field {
   width: 100%;
 }
+
+/* NEW: Store Selection Section */
+.stores-section {
+  margin: 24px 0;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e0e0e0;
+}
+
+.stores-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 0;
+  color: #424242;
+}
+
+.stores-section p {
+  color: #666;
+  margin: 8px 0 16px 0;
+}
+
+.client-stores-card {
+  margin-bottom: 16px;
+}
+
+.stores-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.store-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background-color: #fff;
+}
+
+.store-item:hover {
+  background-color: #f5f5f5;
+  border-color: #3f51b5;
+}
+
+.store-item.selected {
+  background-color: #e8eaf6;
+  border-color: #3f51b5;
+  border-width: 2px;
+}
+
+.store-item mat-icon {
+  color: #666;
+}
+
+.store-item.selected mat-icon {
+  color: #3f51b5;
+}
+
+.store-code {
+  font-weight: 600;
+  color: #3f51b5;
+}
+
+.store-name {
+  color: #666;
+  font-size: 0.9em;
+}

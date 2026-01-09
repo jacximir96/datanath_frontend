@@ -1,7 +1,7 @@
 <mat-card>
   <mat-card-header>
-    <mat-card-title>Client Information</mat-card-title>
-    <mat-card-subtitle>Select one or more configured clients or add new ones</mat-card-subtitle>
+    <mat-card-title>Información del Cliente</mat-card-title>
+    <mat-card-subtitle>Selecciona uno o más clientes configurados</mat-card-subtitle>
   </mat-card-header>
   <mat-card-content>
     @if (hasClients) {
@@ -18,67 +18,32 @@
           }
         </div>
         <div class="action-buttons">
-          <button mat-raised-button color="accent" (click)="toggleManualInput()">
-            <mat-icon>add</mat-icon> Agregar Otro Cliente
-          </button>
           <button mat-button color="warn" (click)="clearAllClients()">
             <mat-icon>clear_all</mat-icon> Limpiar Todos
           </button>
         </div>
       </div>
     } @else {
-      @if (clients.length > 0 && !showManualInput) {
-        <div class="client-selector">
-          <h4>Seleccionar Clientes Configurados</h4>
-          <div class="selector-row">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Clientes</mat-label>
-              <mat-select [(ngModel)]="selectedClientIds" multiple>
-                @for (client of clients; track client.id) {
-                  <mat-option [value]="client.id">
-                    {{ client.name }} - {{ client.stores.length }} tienda(s)
-                  </mat-option>
-                }
-              </mat-select>
-              <mat-hint>Selecciona uno o más clientes para cargar sus nombres y orígenes</mat-hint>
-            </mat-form-field>
-            <button mat-raised-button color="primary" (click)="selectClients()"
-                    [disabled]="!selectedClientIds || selectedClientIds.length === 0">
-              <mat-icon>check</mat-icon> Seleccionar
-            </button>
-          </div>
-          <div class="divider">
-            <span>o</span>
-          </div>
-          <button mat-button color="accent" (click)="toggleManualInput()">
-            <mat-icon>edit</mat-icon> Escribir Nombre Manualmente
+      <div class="client-selector">
+        <h4>Seleccionar Clientes Configurados</h4>
+        <div class="selector-row">
+          <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Clientes</mat-label>
+            <mat-select [(ngModel)]="selectedClientIds" multiple>
+              @for (client of clients; track client.id) {
+                <mat-option [value]="client.id">
+                  {{ client.name }} - {{ client.stores.length }} tienda(s)
+                </mat-option>
+              }
+            </mat-select>
+            <mat-hint>Selecciona uno o más clientes para cargar sus nombres y orígenes</mat-hint>
+          </mat-form-field>
+          <button mat-raised-button color="primary" (click)="selectClients()"
+                  [disabled]="!selectedClientIds || selectedClientIds.length === 0">
+            <mat-icon>check</mat-icon> Seleccionar
           </button>
         </div>
-      } @else {
-        <div class="manual-input">
-          <h4>Nombre del Cliente</h4>
-          <form [formGroup]="clientForm">
-            <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Client Name</mat-label>
-              <input matInput formControlName="clientName"
-                     placeholder="e.g., MAXPOINT_LEGACY">
-              <mat-hint>Ingresa un identificador único para este cliente</mat-hint>
-              @if (clientForm.get('clientName')?.invalid && clientForm.get('clientName')?.touched) {
-                <mat-error>El nombre del cliente es obligatorio</mat-error>
-              }
-            </mat-form-field>
-            <button mat-raised-button color="primary" (click)="setManualClient()"
-                    [disabled]="clientForm.invalid">
-              <mat-icon>add</mat-icon> Agregar Cliente
-            </button>
-          </form>
-          @if (clients.length > 0) {
-            <button mat-button (click)="toggleManualInput()">
-              <mat-icon>arrow_back</mat-icon> Volver a Seleccionar Cliente
-            </button>
-          }
-        </div>
-      }
+      </div>
     }
   </mat-card-content>
 </mat-card>

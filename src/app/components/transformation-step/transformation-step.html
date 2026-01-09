@@ -360,14 +360,19 @@
           <div class="filter-list">
             <h4>Configuraciones de Salida ({{ filter.length }})</h4>
             @for (item of filter; track $index) {
-              <mat-card class="filter-card">
+              <mat-card class="filter-card" [class.editing]="editingFilterIndex === $index">
                 <mat-card-content>
                   <p><strong>Formato:</strong> {{ item.output_format }}</p>
                   <p><strong>Estructura:</strong></p>
                   <pre>{{ item.wrap_structure | json }}</pre>
-                  <button mat-button color="warn" (click)="removeFilter($index)">
-                    <mat-icon>delete</mat-icon> Eliminar
-                  </button>
+                  <div class="filter-actions">
+                    <button mat-button color="primary" (click)="editFilter($index)">
+                      <mat-icon>edit</mat-icon> Editar
+                    </button>
+                    <button mat-button color="warn" (click)="removeFilter($index)">
+                      <mat-icon>delete</mat-icon> Eliminar
+                    </button>
+                  </div>
                 </mat-card-content>
               </mat-card>
             }
@@ -375,7 +380,13 @@
         }
 
         <div class="add-filter-section">
-          <h4>Agregar Configuración de Salida</h4>
+          @if (editingFilterIndex !== null) {
+            <h4>
+              <mat-icon>edit</mat-icon> Editando Configuración de Salida #{{ editingFilterIndex + 1 }}
+            </h4>
+          } @else {
+            <h4>Agregar Configuración de Salida</h4>
+          }
           <mat-form-field appearance="outline">
             <mat-label>Formato de Salida</mat-label>
             <mat-select [(ngModel)]="newOutputFormat">
@@ -401,11 +412,14 @@
 
           <!-- Visual Builder -->
           @if (useVisualBuilder) {
-            <app-json-builder
-              [availableColumns]="availableColumns"
-              [columnMetadata]="columnMetadata()"
-              (structure)="onJsonBuilderChange($event)">
-            </app-json-builder>
+            @for (item of [jsonBuilderKey]; track item) {
+              <app-json-builder
+                [availableColumns]="availableColumns"
+                [columnMetadata]="columnMetadata()"
+                [initialStructure]="initialJsonStructure"
+                (structure)="onJsonBuilderChange($event)">
+              </app-json-builder>
+            }
           }
 
           <!-- Manual JSON Input -->
@@ -418,9 +432,20 @@
             </mat-form-field>
           }
 
-          <button mat-raised-button color="primary" (click)="addFilter()">
-            <mat-icon>add</mat-icon> Agregar Configuración de Salida
-          </button>
+          <div class="button-group">
+            @if (editingFilterIndex !== null) {
+              <button mat-raised-button color="primary" (click)="addFilter()">
+                <mat-icon>save</mat-icon> Guardar Cambios
+              </button>
+              <button mat-raised-button (click)="cancelEdit()">
+                <mat-icon>cancel</mat-icon> Cancelar
+              </button>
+            } @else {
+              <button mat-raised-button color="primary" (click)="addFilter()">
+                <mat-icon>add</mat-icon> Agregar Configuración de Salida
+              </button>
+            }
+          </div>
         </div>
       </mat-card-content>
     </mat-card>

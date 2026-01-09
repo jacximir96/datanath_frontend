@@ -18,6 +18,7 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import Swal from 'sweetalert2';
 import { ConfigService } from '../../services/config.service';
 import { MetadataService } from '../../services/metadata.service';
@@ -58,7 +59,7 @@ interface TableWithColumns {
     MatInputModule, MatButtonModule, MatIconModule, MatChipsModule,
     MatSelectModule, MatExpansionModule, MatCheckboxModule,
     MatProgressSpinnerModule, MatTooltipModule, MatBadgeModule, MatDialogModule,
-    MatDividerModule, MatAutocompleteModule, MatTabsModule
+    MatDividerModule, MatAutocompleteModule, MatTabsModule, MatSlideToggleModule
   ],
   templateUrl: './entities-step.html',
   styleUrl: './entities-step.css',
@@ -77,6 +78,8 @@ export class EntitiesStepComponent implements OnInit {
   // Signals for dynamic data
   availableClients = computed(() => this.configService.config().clients); // List of clients
   selectedClient = signal<string | null>(null); // Selected client name
+  selectedClientConfig = signal<any | null>(null); // Configuración completa del cliente seleccionado
+  availableOriginsForClient = signal<Origin[]>([]); // Conexiones disponibles del cliente seleccionado
   availableOrigins = computed(() => this.configService.config().origins);
   selectedOrigin = signal<Origin | null>(null);
   availableTables = signal<string[]>([]);
@@ -163,16 +166,31 @@ export class EntitiesStepComponent implements OnInit {
     this.selectedClient.set(clientName);
     this.selectedTable.set(null);
     this.tableColumns.set([]);
+    this.selectedOrigin.set(null);
 
     // Find the client in clientConfigs
     const clientConfig = this.configService.clientConfigs().find(c => c.name === clientName);
 
     if (clientConfig && clientConfig.stores.length > 0) {
-      // Take the first BD automatically
-      const firstOrigin = clientConfig.stores[0];
-      this.selectedOrigin.set(firstOrigin);
-      this.loadTablesForOrigin(firstOrigin);
+      this.selectedClientConfig.set(clientConfig);
+      this.availableOriginsForClient.set(clientConfig.stores);
+
+      // Verificar el tipo de estructura del cliente
+      const structureType = clientConfig.structureType || 'same'; // Por defecto 'same' para retrocompatibilidad
+
+      if (structureType === 'same') {
+        // Todas las conexiones tienen la misma estructura - auto-seleccionar la primera
+        const firstOrigin = clientConfig.stores[0];
+        this.selectedOrigin.set(firstOrigin);
+        this.loadTablesForOrigin(firstOrigin);
+        this.snackBar.open('✓ Cliente con misma estructura - Primera conexión seleccionada automáticamente', 'Cerrar', { duration: 3000 });
+      } else {
+        // Conexiones con diferentes estructuras - usuario debe seleccionar manualmente
+        this.snackBar.open('Cliente con estructuras diferentes - Selecciona la conexión específica', 'Cerrar', { duration: 4000 });
+      }
     } else {
+      this.selectedClientConfig.set(null);
+      this.availableOriginsForClient.set([]);
       this.selectedOrigin.set(null);
       this.snackBar.open('No se encontraron bases de datos para este cliente', 'Cerrar', { duration: 3000 });
     }
@@ -859,6 +877,38 @@ export class EntitiesStepComponent implements OnInit {
       }
 
     }
+
+  toggleFixedConnection(entity: Entity): void {
+    // Toggle the fixedConnection flag
+    entity.fixedConnection = !entity.fixedConnection;
+
+    // Find the group containing this entity and update it
+    const groups = this.entityGroups();
+    const groupIndex = groups.findIndex(g =>
+      g.entities.some(e => e.name === entity.name)
+    );
+
+    if (groupIndex !== -1) {
+      const group = groups[groupIndex];
+      const updatedGroup = { ...group };
+      this.configService.updateEntityGroup(groupIndex, updatedGroup);
+
+      // Show feedback to user
+      const status = entity.fixedConnection ? 'fijada' : 'desfijada';
+      this.snackBar.open(
+        `Conexión ${status} para ${entity.name}`,
+        'Cerrar',
+        { duration: 2000 }
+      );
+    }
+  }
+
+  // Helper method to check if group has relations (avoid template warnings)
+  hasRelations(group: EntityGroup): boolean {
+    return group.entities.length > 0 &&
+           group.entities[0].relations !== undefined &&
+           group.entities[0].relations.length > 0;
+  }
 
   }
 

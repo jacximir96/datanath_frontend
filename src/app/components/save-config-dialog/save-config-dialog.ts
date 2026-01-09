@@ -1,11 +1,16 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+
+export interface SaveConfigDialogData {
+  isUpdate?: boolean;
+  currentName?: string;
+}
 
 @Component({
   selector: 'app-save-config-dialog',
@@ -19,8 +24,10 @@ import { MatIconModule } from '@angular/material/icon';
 })
 export class SaveConfigDialogComponent {
   private dialogRef = inject(MatDialogRef<SaveConfigDialogComponent>);
+  protected data = inject<SaveConfigDialogData>(MAT_DIALOG_DATA, { optional: true });
 
-  configName = '';
+  configName = this.data?.currentName || '';
+  isUpdate = this.data?.isUpdate || false;
 
   onSave(): void {
     if (this.configName.trim()) {

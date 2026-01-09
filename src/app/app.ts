@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { ConfigBuilderComponent } from './components/config-builder/config-builder';
 import { ClientManagementComponent } from './components/client-management/client-management';
+import { StoreCatalogManagementComponent } from './components/store-catalog-management/store-catalog-management';
 import { ProcessMonitorComponent } from './components/process-monitor/process-monitor';
 import { SavedConfigsComponent } from './components/saved-configs/saved-configs';
 import { LoginComponent } from './components/login/login';
@@ -29,8 +30,8 @@ interface MenuItem {
   imports: [
     CommonModule, MatSidenavModule, MatToolbarModule, MatIconModule, MatListModule,
     MatButtonModule, MatMenuModule, MatBadgeModule, MatTooltipModule, MatDividerModule,
-    ConfigBuilderComponent, ClientManagementComponent, ProcessMonitorComponent, SavedConfigsComponent,
-    LoginComponent
+    ConfigBuilderComponent, ClientManagementComponent, StoreCatalogManagementComponent,
+    ProcessMonitorComponent, SavedConfigsComponent, LoginComponent
   ],
   templateUrl: './app.html',
   styleUrl: './app.css'
@@ -51,6 +52,7 @@ export class App {
     { id: 'config-builder', label: 'Constructor', icon: 'build', badge: 0 },
     { id: 'saved-configs', label: 'Configuraciones', icon: 'bookmark', badge: 0 },
     { id: 'client-management', label: 'Clientes', icon: 'business', badge: 0 },
+    { id: 'store-catalog', label: 'Catálogos', icon: 'category', badge: 0 },
     { id: 'process-monitor', label: 'Monitor', icon: 'monitor_heart', badge: 0 }
   ];
 

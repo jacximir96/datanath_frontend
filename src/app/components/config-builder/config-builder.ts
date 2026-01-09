@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatStepper, MatStepperModule } from '@angular/material/stepper';
 import { MatButtonModule } from '@angular/material/button';
@@ -39,9 +39,24 @@ import { ConfigService } from '../../services/config.service';
 export class ConfigBuilderComponent {
   protected configService = inject(ConfigService);
 
+  @ViewChild('stepper') stepper!: MatStepper;
+
   resetConfiguration() {
     if (confirm('¿Está seguro de que desea reiniciar toda la configuración?')) {
       this.configService.resetConfiguration();
+    }
+  }
+
+  resetAll() {
+    if (confirm('⚠️ ¿Está seguro de que desea reiniciar TODO? Se borrarán:\n\n• Clientes seleccionados\n• Orígenes configurados\n• Entidades seleccionadas\n• Transformaciones\n• Destino\n• Grupos de conexión\n\nEsta acción NO se puede deshacer.')) {
+      // Reset configuration (clients, origins, entities, transformation, target)
+      this.configService.resetConfiguration();
+
+      // Reset scenarios (connection groups)
+      this.configService.updateScenarios([]);
+
+      // Reset stepper to first step
+      this.stepper.reset();
     }
   }
 }

@@ -1,7 +1,7 @@
 <mat-card>
   <mat-card-header>
-    <mat-card-title>Data Origins</mat-card-title>
-    <mat-card-subtitle>Select a configured client or add origins manually</mat-card-subtitle>
+    <mat-card-title>Orígenes de Datos</mat-card-title>
+    <mat-card-subtitle>Selecciona un cliente configurado o agrega orígenes manualmente</mat-card-subtitle>
   </mat-card-header>
   <mat-card-content>
     @if (clients.length > 0 && origins.length === 0) {
@@ -45,14 +45,14 @@
               </mat-panel-description>
             </mat-expansion-panel-header>
             <div class="origin-details">
-              <p><strong>Server:</strong> {{ origin.servidor }}</p>
-              <p><strong>Port:</strong> {{ origin.puerto }}</p>
-              <p><strong>User:</strong> {{ origin.user }}</p>
-              <p><strong>Repository:</strong> {{ origin.repository }}</p>
-              <p><strong>Adapter:</strong> {{ origin.adapter }}</p>
+              <p><strong>Servidor:</strong> {{ origin.servidor }}</p>
+              <p><strong>Puerto:</strong> {{ origin.puerto }}</p>
+              <p><strong>Usuario:</strong> {{ origin.user }}</p>
+              <p><strong>Repositorio:</strong> {{ origin.repository }}</p>
+              <p><strong>Adaptador:</strong> {{ origin.adapter }}</p>
               <button mat-raised-button color="warn" (click)="removeOrigin($index)">
                 <mat-icon>delete</mat-icon>
-                Remove
+                Eliminar
               </button>
             </div>
           </mat-expansion-panel>
@@ -69,10 +69,10 @@
 
     @if (showManualAdd || origins.length > 0 || clients.length === 0) {
       <div class="add-origin-section">
-      <h3>Add New Origin</h3>
+      <h3>Agregar Nuevo Origen</h3>
       <form #originForm="ngForm" class="origin-form">
         <mat-form-field appearance="outline">
-          <mat-label>Server</mat-label>
+          <mat-label>Servidor</mat-label>
           <input matInput [(ngModel)]="newOrigin().servidor"
                  name="servidor"
                  #serverInput="ngModel"
@@ -84,7 +84,7 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Port</mat-label>
+          <mat-label>Puerto</mat-label>
           <input matInput [(ngModel)]="newOrigin().puerto"
                  name="puerto"
                  #portInput="ngModel"
@@ -92,7 +92,7 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>User</mat-label>
+          <mat-label>Usuario</mat-label>
           <input matInput [(ngModel)]="newOrigin().user"
                  name="user"
                  #userInput="ngModel"
@@ -104,7 +104,7 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Password</mat-label>
+          <mat-label>Contraseña</mat-label>
           <input matInput type="password"
                  [(ngModel)]="newOrigin().password"
                  name="password"
@@ -116,7 +116,7 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Repository/Database</mat-label>
+          <mat-label>Repositorio/Base de Datos</mat-label>
           <input matInput [(ngModel)]="newOrigin().repository"
                  name="repository"
                  #repositoryInput="ngModel"
@@ -128,7 +128,7 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline">
-          <mat-label>Adapter</mat-label>
+          <mat-label>Adaptador</mat-label>
           <mat-select [(ngModel)]="newOrigin().adapter"
                       name="adapter"
                       #adapterInput="ngModel"
@@ -145,7 +145,7 @@
         <button mat-raised-button color="primary" (click)="addOrigin()"
                 [disabled]="!isOriginFormValid()">
           <mat-icon>add</mat-icon>
-          Add Origin
+          Agregar Origen
         </button>
       </form>
     </div>

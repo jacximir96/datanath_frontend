@@ -63,7 +63,7 @@
             </div>
 
             <!-- Join Conditions (Cruces) -->
-            @if (group.type === 'Metamodelo' && group.entities[0]?.relations?.length) {
+            @if (group.type === 'Metamodelo' && hasRelations(group)) {
               <div class="inner-entities-list">
                 <h4>Cruces (Joins):</h4>
                 <div class="properties-grid">
@@ -97,6 +97,18 @@
                       }
                      </mat-card-subtitle>
                   </mat-card-header>
+                  <!-- Fixed Connection Toggle -->
+                  @if (entity.originRepository) {
+                    <div class="fixed-connection-toggle">
+                      <mat-slide-toggle
+                        [checked]="entity.fixedConnection || false"
+                        (change)="toggleFixedConnection(entity)"
+                        color="accent">
+                        <mat-icon>{{entity.fixedConnection ? 'lock' : 'lock_open'}}</mat-icon>
+                        Fijar conexión ({{ entity.originRepository }})
+                      </mat-slide-toggle>
+                    </div>
+                  }
                   <mat-card-content>
                     @if (entity.properties.length > 0) {
                       <h5 class="detail-header">Propiedades:</h5>
@@ -143,7 +155,7 @@
                 <div class="warning-content">
                   <h4>Flujo en Cascada Activo</h4>
                   <p>Debes ejecutar y obtener resultados del último grupo antes de crear uno nuevo.</p>
-                  <p class="hint">Ejecuta la consulta del grupo "{{ entityGroups()[entityGroups().length - 1]?.name }}" para continuar.</p>
+                  <p class="hint">Ejecuta la consulta del grupo "{{ entityGroups()[entityGroups().length - 1].name }}" para continuar.</p>
                 </div>
               </mat-card-content>
             </mat-card>
@@ -160,9 +172,42 @@
                   </mat-option>
                 }
               </mat-select>
-              <mat-hint>Se seleccionará automáticamente la primera base de datos del cliente</mat-hint>
+              @if (selectedClientConfig() && selectedClientConfig().structureType === 'same') {
+                <mat-hint>
+                  <mat-icon style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle; color: #4caf50;">done_all</mat-icon>
+                  Cliente con misma estructura - Primera conexión seleccionada automáticamente
+                </mat-hint>
+              } @else if (selectedClientConfig() && selectedClientConfig().structureType === 'different') {
+                <mat-hint>
+                  <mat-icon style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle; color: #ff9800;">difference</mat-icon>
+                  Cliente con estructuras diferentes - Selecciona una conexión específica
+                </mat-hint>
+              } @else {
+                <mat-hint>Selecciona un cliente para continuar</mat-hint>
+              }
             </mat-form-field>
           </div>
+
+          <!-- Step 1.5: Select Connection (Only for 'different' structure type) -->
+          @if (selectedClientConfig() && selectedClientConfig().structureType === 'different' && availableOriginsForClient().length > 0) {
+            <div class="step-section">
+              <h3>1.5. Seleccionar Conexión</h3>
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Conexión / Base de Datos</mat-label>
+                <mat-select [(ngModel)]="selectedOrigin" (selectionChange)="onOriginSelected($event.value)" [disabled]="!canCreateNewGroup()">
+                  @for (origin of availableOriginsForClient(); track origin.repository) {
+                    <mat-option [value]="origin">
+                      <div style="display: flex; flex-direction: column;">
+                        <strong>{{ origin.repository }}</strong>
+                        <small style="color: #666;">{{ origin.servidor }} - {{ origin.adapter }}</small>
+                      </div>
+                    </mat-option>
+                  }
+                </mat-select>
+                <mat-hint>Selecciona de qué conexión quieres obtener las entidades</mat-hint>
+              </mat-form-field>
+            </div>
+          }
 
           <!-- Step 2: Select Table -->
           @if (selectedOrigin()) {

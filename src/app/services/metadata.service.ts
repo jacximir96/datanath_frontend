@@ -232,7 +232,7 @@ export class MetadataService {
           }
         }
       `;
-  
+
       return this.ensureAuthenticated().pipe(
         catchError(() => of(true)),
         switchMap(() => this.http.post<GraphQLResponse<{ getTableRelationsFromConnection: RelationInfo[] }>>(
@@ -250,6 +250,46 @@ export class MetadataService {
         catchError(error => {
           console.error('Error fetching relations:', error);
           return of([]);
+        })
+      );
+    }
+
+    getDistinctValues(origin: Origin, collectionName: string, fieldName: string): Observable<string[]> {
+      // Nuevo método para detectar tiendas
+      const query = `
+        query {
+          getDistinctValues(
+            connection: {
+              servidor: "${origin.servidor}"
+              puerto: "${origin.puerto}"
+              user: "${origin.user}"
+              password: "${origin.password}"
+              repository: "${origin.repository}"
+              adapter: "${origin.adapter}"
+            }
+            collectionName: "${collectionName}"
+            fieldName: "${fieldName}"
+          )
+        }
+      `;
+
+      return this.ensureAuthenticated().pipe(
+        catchError(() => of(true)),
+        switchMap(() => this.http.post<GraphQLResponse<{ getDistinctValues: string[] }>>(
+          this.apiUrl,
+          { query },
+          { headers: this.getHeaders() }
+        )),
+        map(response => {
+          if (response.errors) {
+            console.error('GraphQL errors:', response.errors);
+            throw new Error(response.errors[0].message);
+          }
+          return response.data.getDistinctValues || [];
+        }),
+        catchError(error => {
+          console.error('Error fetching distinct values:', error);
+          return throwError(() => error);
         })
       );
     }

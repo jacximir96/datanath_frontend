@@ -5,6 +5,15 @@ export interface Origin {
   password: string;
   repository: string;
   adapter: string;
+  // Campos para asociar items del catálogo a esta conexión específica
+  associatedStores?: string[]; // IDs de items del catálogo asociados a esta conexión
+  storeFilterField?: string; // Campo para filtrar por item del catálogo (ej: "restaurant_name", "store_id")
+  // Campos internos para separación por tiendas (no se exportan al orquestador)
+  _internalStores?: {
+    storeIds: string[];           // ["G008", "G009", "G010"]
+    filterField: string;          // "restaurant_name"
+    detectionCollection: string;  // "PurchaseOrders_POS_Order"
+  };
 }
 
 export interface Filter {
@@ -38,6 +47,7 @@ export interface Entity {
   filters: Filter[];
   relations?: EntityRelation[];  // Guardar info de FK para auto-merge
   originRepository?: string;
+  fixedConnection?: boolean; // Si está en true, usa la misma conexión en todos los grupos (no rota)
 }
 
 // NEW: Intermediate Stage (Etapa intermedia con Cosmos)
@@ -164,11 +174,20 @@ export interface DataConfiguration {
   entities: Entity[];
 }
 
+export interface StoreItem {
+  id: string;
+  code: string; // G008, G009, etc.
+  name: string; // Nombre descriptivo (opcional)
+  description?: string;
+  createdAt?: string;
+}
+
 export interface ClientConfig {
   id: string;
   name: string;
   description: string;
-  stores: Origin[];
+  stores: Origin[]; // Cada conexión (Origin) puede tener sus propios associatedStores y storeFilterField
+  structureType: 'same' | 'different'; // 'same' = todas las conexiones tienen la misma estructura, 'different' = cada conexión tiene estructura diferente
   createdAt?: string;
 }
 
@@ -186,6 +205,13 @@ export interface SavedConfiguration {
   name: string;
   description: string;
   config: DataConfiguration;
+  scenarios?: Array<{
+    id: number;
+    name: string;
+    isReadOnly: boolean;
+    assignments: Array<[string, string]>;
+    storeFilter?: string;
+  }>; // Escenarios/Grupos de conexión serializados
   createdAt: string;
   lastUsed?: string;
 }
