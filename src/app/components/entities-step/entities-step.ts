@@ -110,6 +110,7 @@ export class EntitiesStepComponent implements OnInit {
   // Loading states
   loadingTables = signal<boolean>(false);
   loadingColumns = signal<boolean>(false);
+  loadingError = signal<string | null>(null);
 
   // Mode: 'manual', 'dynamic'
   entryMode = signal<'manual' | 'dynamic'>('dynamic');
@@ -167,6 +168,7 @@ export class EntitiesStepComponent implements OnInit {
     this.selectedTable.set(null);
     this.tableColumns.set([]);
     this.selectedOrigin.set(null);
+    this.loadingError.set(null); // Clear any previous errors
 
     // Find the client in clientConfigs
     const clientConfig = this.configService.clientConfigs().find(c => c.name === clientName);
@@ -200,22 +202,38 @@ export class EntitiesStepComponent implements OnInit {
     this.selectedOrigin.set(origin);
     this.selectedTable.set(null);
     this.tableColumns.set([]);
+    this.loadingError.set(null); // Clear any previous errors
     this.loadTablesForOrigin(origin);
   }
 
   loadTablesForOrigin(origin: Origin): void {
     this.loadingTables.set(true);
     this.availableTables.set([]);
+    this.loadingError.set(null); // Clear any previous errors
 
     this.metadataService.getTables(origin).subscribe({
       next: (tables) => {
         this.availableTables.set(tables);
         this.loadingTables.set(false);
+        this.loadingError.set(null);
       },
       error: (error) => {
         console.error('Error loading tables:', error);
         this.loadingTables.set(false);
         this.availableTables.set([]);
+
+        // Set detailed error message
+        const errorMessage = error?.error?.errors?.[0]?.message ||
+                            error?.message ||
+                            'Error desconocido al cargar las tablas';
+        this.loadingError.set(errorMessage);
+
+        // Show user-friendly snackbar
+        this.snackBar.open(
+          `Error al cargar tablas: ${errorMessage}`,
+          'Cerrar',
+          { duration: 5000 }
+        );
       }
     });
   }

@@ -1,0 +1,4 @@
+{
+  "apiUrl": "http://10.1.48.206:5199",
+  "graphqlUrl": "http://10.1.48.219:5223/graphql"
+}

@@ -1,6 +1,7 @@
 import { Injectable, signal } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, tap, catchError, throwError } from 'rxjs';
+import { environment } from '../../environments/environment';
 
 export interface LoginRequest {
   name: string;
@@ -23,7 +24,7 @@ export interface LoginResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private apiUrl = 'http://localhost:5199';
+  private apiUrl = environment.apiUrl;
   private tokenSignal = signal<string | null>(null);
   private tokenExpirySignal = signal<Date | null>(null);
   private currentUserSignal = signal<string | null>(null);

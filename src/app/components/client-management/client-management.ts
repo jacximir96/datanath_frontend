@@ -108,13 +108,62 @@ export class ClientManagementComponent implements OnInit {
 
   editingStoreIndex: number | null = null;
 
+  // Paginación para lista de tiendas
+  storesPageSize = 10;
+  storesCurrentPage = signal(0);
+  storesSearchControl = new FormControl('');
+
   adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal', 'MongoSrv'];
 
+  // Signal para el valor de búsqueda de tiendas
+  private storesSearchValue = toSignal(
+    this.storesSearchControl.valueChanges.pipe(
+      startWith(''),
+      map(value => value || '')
+    ),
+    { initialValue: '' }
+  );
+
+  // Computed para tiendas filtradas
+  filteredClientStores = computed(() => {
+    const stores = this.clientForm().stores;
+    const searchTerm = this.storesSearchValue().toLowerCase();
+
+    if (!searchTerm) {
+      return stores;
+    }
+
+    return stores.filter(store =>
+      store.servidor.toLowerCase().includes(searchTerm) ||
+      store.repository.toLowerCase().includes(searchTerm) ||
+      store.adapter.toLowerCase().includes(searchTerm) ||
+      store.user.toLowerCase().includes(searchTerm)
+    );
+  });
+
+  // Computed para tiendas paginadas (usando las filtradas)
+  paginatedStores = computed(() => {
+    const stores = this.filteredClientStores();
+    const page = this.storesCurrentPage();
+    const start = page * this.storesPageSize;
+    const end = start + this.storesPageSize;
+    return stores.slice(start, end);
+  });
+
+  get totalStoresPages(): number {
+    return Math.ceil(this.filteredClientStores().length / this.storesPageSize);
+  }
+
   ngOnInit() {
-    this.configService.loadClientConfigsFromLocalStorage();
+    this.configService.loadClientConfigsFromGraphQL();
     this.configService.loadStoreCatalogFromLocalStorage();
     // Cargar conexiones desde GraphQL automáticamente
     this.loadConnectionsFromGraphQL();
+
+    // Resetear página cuando cambia la búsqueda
+    this.storesSearchControl.valueChanges.subscribe(() => {
+      this.storesCurrentPage.set(0);
+    });
   }
 
   get clients(): ClientConfig[] {
@@ -180,12 +229,26 @@ export class ClientManagementComponent implements OnInit {
   editClient(client: ClientConfig) {
     this.editingClient = client;
     this.selectedStoresForConnection.set([]);
+    this.storesCurrentPage.set(0); // Reset pagination
+    this.storesSearchControl.setValue(''); // Reset search
     this.clientForm.set({
       ...client,
       stores: [...client.stores],
       structureType: client.structureType || 'same' // Retrocompatibilidad para clientes existentes
     });
     this.showForm = true;
+  }
+
+  nextStoresPage() {
+    if (this.storesCurrentPage() < this.totalStoresPages - 1) {
+      this.storesCurrentPage.update(p => p + 1);
+    }
+  }
+
+  previousStoresPage() {
+    if (this.storesCurrentPage() > 0) {
+      this.storesCurrentPage.update(p => p - 1);
+    }
   }
 
   deleteClient(id: string) {
@@ -206,33 +269,133 @@ export class ClientManagementComponent implements OnInit {
 
   addStore() {
     const store = this.newStore();
+    const client = this.clientForm();
+
+    // Validar que el nombre del cliente esté ingresado
+    if (!client.name) {
+      this.snackBar.open('Debes ingresar el nombre del cliente primero', 'Cerrar', { duration: 3000 });
+      return;
+    }
+
     if (store.servidor && store.user && store.repository) {
-      const client = this.clientForm();
       const selectedStores = this.selectedStoresForConnection();
 
-      // Copiar los items seleccionados a la conexión
-      const storeWithItems: Origin = {
-        ...store,
-        associatedStores: selectedStores.length > 0
-          ? [...selectedStores]
-          : undefined,
-        storeFilterField: selectedStores.length > 0 && store.storeFilterField
-          ? store.storeFilterField
-          : undefined
-      };
-
-      if (this.editingStoreIndex !== null) {
-        // Actualizar tienda existente
-        client.stores[this.editingStoreIndex] = storeWithItems;
-        this.editingStoreIndex = null;
-      } else {
-        // Agregar store
-        client.stores.push(storeWithItems);
+      // Extraer clientId del repository (ej: "MAXPOINT_A013" -> "A013")
+      let clientId = '';
+      if (client.name === 'MAXPOINT_LEGACY' && store.repository.includes('_')) {
+        const parts = store.repository.split('_');
+        clientId = parts.length > 1 ? parts[1] : '';
       }
 
-      this.resetNewStore();
-      this.selectedStoresForConnection.set([]);
+      // Verificar si necesitamos crear el ClientConfig primero
+      const needsClientConfig = !client.id || !this.editingClient;
+
+      if (needsClientConfig) {
+        // Crear ClientConfig primero para clientes nuevos
+        const clientConfigInput = {
+          name: client.name,
+          description: client.description || null,
+          structureType: client.structureType || 'same'
+        };
+
+        this.graphqlService.createClientConfig(clientConfigInput).subscribe({
+          next: (response) => {
+            const newClientConfig = response.data.createClientConfig;
+            // Actualizar el formulario con el ID del ClientConfig
+            this.clientForm.update(c => ({ ...c, id: newClientConfig.id }));
+            // Continuar con la creación de la conexión
+            this.createOrUpdateConnection(newClientConfig.id, store, selectedStores, clientId);
+          },
+          error: (error) => {
+            console.error('Error al crear ClientConfig:', error);
+            this.snackBar.open('Error al crear configuración del cliente', 'Cerrar', { duration: 3000 });
+          }
+        });
+      } else {
+        // Cliente existente, usar el ID que ya tiene
+        this.createOrUpdateConnection(client.id, store, selectedStores, clientId);
+      }
+    } else {
+      this.snackBar.open('Por favor completa todos los campos requeridos de la tienda', 'Cerrar', { duration: 3000 });
     }
+  }
+
+  private createOrUpdateConnection(clientConfigId: string, store: Origin, selectedStores: string[], clientId: string) {
+    const client = this.clientForm();
+
+    // Preparar input para GraphQL
+    const input = {
+      clientConfigId: clientConfigId,
+      clientName: client.name,
+      clientId: clientId,
+      servidor: store.servidor,
+      puerto: store.puerto,
+      user: store.user,
+      password: store.password,
+      repository: store.repository,
+      adapter: store.adapter,
+      associatedStores: selectedStores.length > 0 ? selectedStores : [],
+      storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : null
+    };
+
+      if (this.editingStoreIndex !== null) {
+        // Actualizar tienda existente en GraphQL
+        const existingStore = client.stores[this.editingStoreIndex];
+        const connectionId = existingStore._connectionId;
+
+        if (connectionId) {
+          this.graphqlService.updateConnection(connectionId, input).subscribe({
+            next: (response) => {
+              // Actualizar en el formulario local
+              const updatedStore: Origin = {
+                _connectionId: connectionId,
+                ...store,
+                associatedStores: selectedStores.length > 0 ? [...selectedStores] : undefined,
+                storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : undefined
+              };
+              client.stores[this.editingStoreIndex!] = updatedStore;
+              this.editingStoreIndex = null;
+              this.resetNewStore();
+              this.selectedStoresForConnection.set([]);
+              this.snackBar.open('Tienda actualizada exitosamente', 'Cerrar', { duration: 2000 });
+
+              // Recargar configuraciones
+              this.configService.loadClientConfigsFromGraphQL();
+            },
+            error: (error) => {
+              console.error('Error al actualizar tienda:', error);
+              this.snackBar.open('Error al actualizar tienda', 'Cerrar', { duration: 3000 });
+            }
+          });
+        }
+      } else {
+        // Crear nueva tienda en GraphQL
+        this.graphqlService.createConnection(input).subscribe({
+          next: (response) => {
+            const newConnection = response.data.createConnection;
+
+            // Agregar al formulario local con el ID de GraphQL
+            const storeWithId: Origin = {
+              _connectionId: newConnection.id,
+              ...store,
+              associatedStores: selectedStores.length > 0 ? [...selectedStores] : undefined,
+              storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : undefined
+            };
+            client.stores.push(storeWithId);
+
+            this.resetNewStore();
+            this.selectedStoresForConnection.set([]);
+            this.snackBar.open('Tienda agregada exitosamente', 'Cerrar', { duration: 2000 });
+
+            // Recargar configuraciones
+            this.configService.loadClientConfigsFromGraphQL();
+          },
+          error: (error) => {
+            console.error('Error al crear tienda:', error);
+            this.snackBar.open('Error al crear tienda', 'Cerrar', { duration: 3000 });
+          }
+        });
+      }
   }
 
   editStore(index: number) {
@@ -256,17 +419,70 @@ export class ClientManagementComponent implements OnInit {
     this.editingStoreIndex = index;
   }
 
+  // Método nuevo que busca por connectionId (funciona con filtros)
+  editStoreByConnectionId(connectionId: string | undefined) {
+    if (!connectionId) return;
+
+    const client = this.clientForm();
+    const index = client.stores.findIndex(s => s._connectionId === connectionId);
+
+    if (index !== -1) {
+      this.editStore(index);
+    }
+  }
+
   removeStore(index: number) {
     const client = this.clientForm();
-    client.stores.splice(index, 1);
+    const store = client.stores[index];
+    const connectionId = store._connectionId;
 
-    // Si estamos editando esta tienda, cancelar la edición
-    if (this.editingStoreIndex === index) {
-      this.editingStoreIndex = null;
-      this.resetNewStore();
-    } else if (this.editingStoreIndex !== null && this.editingStoreIndex > index) {
-      // Ajustar el índice si eliminamos una tienda antes de la que estamos editando
-      this.editingStoreIndex--;
+    if (connectionId) {
+      // Eliminar de GraphQL
+      this.graphqlService.deleteConnection(connectionId).subscribe({
+        next: () => {
+          // Eliminar del formulario local
+          client.stores.splice(index, 1);
+
+          // Si estamos editando esta tienda, cancelar la edición
+          if (this.editingStoreIndex === index) {
+            this.editingStoreIndex = null;
+            this.resetNewStore();
+          } else if (this.editingStoreIndex !== null && this.editingStoreIndex > index) {
+            // Ajustar el índice si eliminamos una tienda antes de la que estamos editando
+            this.editingStoreIndex--;
+          }
+
+          this.snackBar.open('Tienda eliminada exitosamente', 'Cerrar', { duration: 2000 });
+
+          // Recargar configuraciones
+          this.configService.loadClientConfigsFromGraphQL();
+        },
+        error: (error) => {
+          console.error('Error al eliminar tienda:', error);
+          this.snackBar.open('Error al eliminar tienda', 'Cerrar', { duration: 3000 });
+        }
+      });
+    } else {
+      // Si no tiene connectionId (no debería pasar), solo eliminar localmente
+      client.stores.splice(index, 1);
+      if (this.editingStoreIndex === index) {
+        this.editingStoreIndex = null;
+        this.resetNewStore();
+      } else if (this.editingStoreIndex !== null && this.editingStoreIndex > index) {
+        this.editingStoreIndex--;
+      }
+    }
+  }
+
+  // Método nuevo que busca por connectionId (funciona con filtros)
+  removeStoreByConnectionId(connectionId: string | undefined) {
+    if (!connectionId) return;
+
+    const client = this.clientForm();
+    const index = client.stores.findIndex(s => s._connectionId === connectionId);
+
+    if (index !== -1) {
+      this.removeStore(index);
     }
   }
 
@@ -324,13 +540,39 @@ export class ClientManagementComponent implements OnInit {
   saveClient() {
     const client = this.clientForm();
 
-    if (client.name && client.stores.length > 0) {
-      if (this.editingClient) {
-        this.configService.updateClientConfig(client.id, client);
-      } else {
-        this.configService.addClientConfig(client);
-      }
-      this.cancelForm();
+    if (!client.name) {
+      this.snackBar.open('Debes ingresar el nombre del cliente', 'Cerrar', { duration: 3000 });
+      return;
+    }
+
+    if (client.stores.length === 0) {
+      this.snackBar.open('Debes agregar al menos una tienda', 'Cerrar', { duration: 3000 });
+      return;
+    }
+
+    // Las tiendas ya están guardadas en GraphQL
+    // Actualizar el ClientConfig con los cambios (nombre, descripción, structureType)
+    if (client.id) {
+      const clientConfigInput = {
+        name: client.name,
+        description: client.description || null,
+        structureType: client.structureType || 'same'
+      };
+
+      this.graphqlService.updateClientConfig(client.id, clientConfigInput).subscribe({
+        next: () => {
+          this.snackBar.open('Cliente guardado exitosamente', 'Cerrar', { duration: 2000 });
+          this.cancelForm();
+          // Recargar la lista de clientes
+          this.configService.loadClientConfigsFromGraphQL();
+        },
+        error: (error) => {
+          console.error('Error al actualizar ClientConfig:', error);
+          this.snackBar.open('Error al guardar cliente', 'Cerrar', { duration: 3000 });
+        }
+      });
+    } else {
+      this.snackBar.open('Error: Cliente sin ID', 'Cerrar', { duration: 3000 });
     }
   }
 

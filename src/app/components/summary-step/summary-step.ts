@@ -242,12 +242,8 @@ export class SummaryStepComponent implements OnInit {
       if (configName) {
         if (isUpdate && currentLoadedId) {
           // Actualizar configuración existente
-          const updated = this.configService.updateConfiguration(currentLoadedId, configName, '');
-          if (updated) {
-            this.snackBar.open('Configuración actualizada exitosamente', 'Cerrar', { duration: 3000 });
-          } else {
-            this.snackBar.open('Error al actualizar configuración', 'Cerrar', { duration: 3000 });
-          }
+          this.configService.updateConfiguration(currentLoadedId, configName, '');
+          this.snackBar.open('Configuración actualizada exitosamente', 'Cerrar', { duration: 3000 });
         } else {
           // Guardar nueva configuración
           this.configService.saveConfiguration(configName, '');

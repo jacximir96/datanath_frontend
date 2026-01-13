@@ -11,12 +11,13 @@ import {
   GetTableRelationsResponse
 } from '../models/metadata.model';
 import { Origin } from '../models/config.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class MetadataService {
-  private apiUrl = 'http://localhost:5223/graphql';
+  private apiUrl = environment.graphqlUrl;
   private tokenSignal = signal<string | null>(null);
   private tokenExpirySignal = signal<Date | null>(null);
 

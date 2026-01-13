@@ -39,7 +39,7 @@ export class SavedConfigsComponent implements OnInit {
   previewJsonData: string | null = null;
 
   ngOnInit(): void {
-    this.configService.loadSavedConfigsFromLocalStorage();
+    this.configService.loadSavedConfigsFromGraphQL();
 
     // Temporalmente deshabilitado para evitar que se quede cargando
     // if (!this.orchestratorService.isTokenValid()) {

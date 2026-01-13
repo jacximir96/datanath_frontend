@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit, ViewChild } from '@angular/core';
+import { Component, inject, signal, computed, OnInit, ViewChild } from '@angular/core';
 import { FormsModule, NgForm } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -42,16 +42,45 @@ export class OriginsStepComponent implements OnInit {
     adapter: 'SqlServerSP'
   });
 
+  // Paginación para orígenes
+  originsPageSize = 10;
+  originsCurrentPage = signal(0);
+
   adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal', 'MongoSrv'];
   selectedClientId = '';
   showManualAdd = false;
 
   ngOnInit() {
-    this.configService.loadClientConfigsFromLocalStorage();
+    this.configService.loadClientConfigsFromGraphQL();
   }
 
   get origins(): Origin[] {
     return this.configService.config().origins;
+  }
+
+  // Computed para orígenes paginados
+  paginatedOrigins = computed(() => {
+    const origins = this.origins;
+    const page = this.originsCurrentPage();
+    const start = page * this.originsPageSize;
+    const end = start + this.originsPageSize;
+    return origins.slice(start, end);
+  });
+
+  get totalOriginsPages(): number {
+    return Math.ceil(this.origins.length / this.originsPageSize);
+  }
+
+  nextOriginsPage() {
+    if (this.originsCurrentPage() < this.totalOriginsPages - 1) {
+      this.originsCurrentPage.update(p => p + 1);
+    }
+  }
+
+  previousOriginsPage() {
+    if (this.originsCurrentPage() > 0) {
+      this.originsCurrentPage.update(p => p - 1);
+    }
   }
 
   get clientName(): string {
@@ -65,7 +94,21 @@ export class OriginsStepComponent implements OnInit {
 
   loadClientStores() {
     if (this.selectedClientId) {
+      const selectedClient = this.clients.find(c => c.id === this.selectedClientId);
+
+      if (selectedClient && selectedClient.stores.length > 50) {
+        const confirmed = confirm(
+          `Este cliente tiene ${selectedClient.stores.length} tiendas. ¿Deseas cargarlas todas?\n\n` +
+          `Esto puede tomar unos segundos.`
+        );
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
       this.configService.loadClientConfig(this.selectedClientId);
+      this.originsCurrentPage.set(0); // Reset a la primera página
       this.selectedClientId = '';
     }
   }

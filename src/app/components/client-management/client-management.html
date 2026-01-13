@@ -43,7 +43,15 @@
                     </mat-panel-title>
                   </mat-expansion-panel-header>
                   <div class="stores-list">
-                    @for (store of client.stores; track $index) {
+                    @if (client.stores.length > 10) {
+                      <div style="background: #e3f2fd; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+                        <mat-icon style="color: #1976d2; font-size: 18px; height: 18px; width: 18px;">info</mat-icon>
+                        <span style="font-size: 0.9em; color: #1565c0;">
+                          Mostrando las primeras 10 de {{ client.stores.length }} conexiones. Haz clic en "Editar" para ver todas con búsqueda.
+                        </span>
+                      </div>
+                    }
+                    @for (store of client.stores.slice(0, 10); track $index) {
                       <div class="store-item">
                         <p><strong>Servidor:</strong> {{ store.servidor }}</p>
                         <p><strong>Repository:</strong> {{ store.repository }}</p>
@@ -56,12 +64,17 @@
                             <strong>Items del catálogo ({{ store.associatedStores.length }}):</strong>
                           </p>
                           <div style="display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px;">
-                            @for (storeId of store.associatedStores; track storeId) {
+                            @for (storeId of store.associatedStores.slice(0, 10); track storeId) {
                               @if (getStoreById(storeId); as item) {
                                 <mat-chip style="font-size: 11px; height: 24px; min-height: 24px;">
                                   {{ item.code }}
                                 </mat-chip>
                               }
+                            }
+                            @if (store.associatedStores.length > 10) {
+                              <mat-chip style="font-size: 11px; height: 24px; min-height: 24px; background: #e0e0e0;">
+                                +{{ store.associatedStores.length - 10 }} más
+                              </mat-chip>
                             }
                           </div>
                           @if (store.storeFilterField) {
@@ -159,8 +172,42 @@
         <p class="subtitle">Configura las conexiones a bases de datos. Cada conexión puede tener sus propios items del catálogo asociados.</p>
 
         @if (clientForm().stores.length > 0) {
+          <!-- Buscador de conexiones -->
+          <mat-form-field appearance="outline" class="full-width" style="margin-bottom: 16px;">
+            <mat-label>Buscar conexión</mat-label>
+            <input matInput [formControl]="storesSearchControl" placeholder="Buscar por servidor, repository, adapter o usuario...">
+            <mat-icon matPrefix>search</mat-icon>
+            @if (storesSearchControl.value) {
+              <button matSuffix mat-icon-button (click)="storesSearchControl.setValue(''); storesCurrentPage.set(0)">
+                <mat-icon>clear</mat-icon>
+              </button>
+            }
+            <mat-hint>
+              @if (filteredClientStores().length !== clientForm().stores.length) {
+                Mostrando {{ filteredClientStores().length }} de {{ clientForm().stores.length }} conexiones
+              } @else {
+                {{ clientForm().stores.length }} conexiones totales
+              }
+            </mat-hint>
+          </mat-form-field>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <p style="margin: 0;"><strong>{{ filteredClientStores().length }} conexion(es)</strong></p>
+            @if (totalStoresPages > 1) {
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <button mat-icon-button (click)="previousStoresPage()" [disabled]="storesCurrentPage() === 0">
+                  <mat-icon>chevron_left</mat-icon>
+                </button>
+                <span>Página {{ storesCurrentPage() + 1 }} de {{ totalStoresPages }}</span>
+                <button mat-icon-button (click)="nextStoresPage()" [disabled]="storesCurrentPage() >= totalStoresPages - 1">
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+
           <mat-accordion>
-            @for (store of clientForm().stores; track $index) {
+            @for (store of paginatedStores(); track $index) {
               <mat-expansion-panel>
                 <mat-expansion-panel-header>
                   <mat-panel-title>
@@ -207,10 +254,10 @@
                   }
 
                   <div class="store-actions">
-                    <button mat-raised-button color="primary" (click)="editStore($index)">
+                    <button mat-raised-button color="primary" (click)="editStoreByConnectionId(store._connectionId)">
                       <mat-icon>edit</mat-icon> Editar
                     </button>
-                    <button mat-raised-button color="warn" (click)="removeStore($index)">
+                    <button mat-raised-button color="warn" (click)="removeStoreByConnectionId(store._connectionId)">
                       <mat-icon>delete</mat-icon> Remover
                     </button>
                   </div>

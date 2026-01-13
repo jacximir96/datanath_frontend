@@ -1,5 +1,7 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, signal, computed, inject } from '@angular/core';
 import { DataConfiguration, Origin, Entity, Target, Transformation, Template, ClientConfig, SavedConfiguration, EntityGroup, StoreItem } from '../models/config.model';
+import { GraphqlService } from './graphql.service';
+import { map, forkJoin, switchMap, of } from 'rxjs';
 
 // Represents a scenario, which the user calls a "Group"
 export interface Scenario {
@@ -45,6 +47,9 @@ export class ConfigService {
   private storeCatalogSignal = signal<StoreItem[]>([]);
   private graphqlConnectionsSignal = signal<any[]>([]);
   private currentLoadedConfigIdSignal = signal<string | null>(null);
+  private isLoadingClientConfigs = false;
+
+  private graphqlService = inject(GraphqlService);
 
   config = this.configSignal.asReadonly();
   templates = this.templatesSignal.asReadonly();
@@ -823,24 +828,117 @@ export class ConfigService {
     }
   }
 
-  // Client Configuration management
-  addClientConfig(clientConfig: ClientConfig) {
-    this.clientConfigsSignal.update(configs => [...configs, clientConfig]);
-    this.saveClientConfigsToLocalStorage();
+  // Client Configuration management (using GraphQL)
+  private _createConnections(clientConfig: ClientConfig): Promise<void> {
+    // Create one connection per store in the ClientConfig
+    const connectionPromises = clientConfig.stores.map(store => {
+      const input = {
+        clientName: clientConfig.name,
+        servidor: store.servidor,
+        puerto: store.puerto,
+        user: store.user,
+        password: store.password,
+        repository: store.repository,
+        adapter: store.adapter,
+        associatedStores: store.associatedStores || [],
+        storeFilterField: store.storeFilterField || null
+      };
+
+      return this.graphqlService.createConnection(input).toPromise();
+    });
+
+    // Execute all connection creations
+    return Promise.all(connectionPromises)
+      .then(() => {
+        console.log('Conexiones creadas exitosamente');
+        // Reload client configs from GraphQL to update the signal
+        this.loadClientConfigsFromGraphQL();
+      });
   }
 
-  updateClientConfig(id: string, clientConfig: ClientConfig) {
-    this.clientConfigsSignal.update(configs =>
-      configs.map(c => c.id === id ? clientConfig : c)
+  addClientConfig(clientConfig: ClientConfig): void {
+    // Check if this client already has connections in GraphQL
+    const existingConnections = this.graphqlConnectionsSignal().filter(
+      conn => conn.clientName === clientConfig.name
     );
-    this.saveClientConfigsToLocalStorage();
+
+    if (existingConnections.length > 0) {
+      // Client already exists, update instead of creating duplicates
+      console.log('Cliente ya existe, actualizando en lugar de crear duplicados...');
+      const existingConfig = this.clientConfigsSignal().find(c => c.name === clientConfig.name);
+      if (existingConfig) {
+        this.updateClientConfig(existingConfig.id, clientConfig);
+        return;
+      }
+    }
+
+    // Create connections for new client
+    this._createConnections(clientConfig)
+      .then(() => {
+        console.log('ClientConfig guardado exitosamente');
+      })
+      .catch(error => {
+        console.error('Error al guardar ClientConfig:', error);
+      });
   }
 
-  deleteClientConfig(id: string) {
-    this.clientConfigsSignal.update(configs =>
-      configs.filter(c => c.id !== id)
+  updateClientConfig(id: string, clientConfig: ClientConfig): void {
+    // First, delete all existing connections for this client
+    const existingConfig = this.clientConfigsSignal().find(c => c.id === id);
+    if (!existingConfig) {
+      console.error('ClientConfig no encontrado:', id);
+      return;
+    }
+
+    // Find all connections with this clientName and delete them
+    const connectionsToDelete = this.graphqlConnectionsSignal().filter(
+      conn => conn.clientName === existingConfig.name
     );
-    this.saveClientConfigsToLocalStorage();
+
+    const deletePromises = connectionsToDelete.map(conn =>
+      this.graphqlService.deleteConnection(conn.id).toPromise()
+    );
+
+    Promise.all(deletePromises)
+      .then(() => {
+        // Now create new connections using the private method
+        return this._createConnections(clientConfig);
+      })
+      .then(() => {
+        console.log('ClientConfig actualizado exitosamente');
+      })
+      .catch(error => {
+        console.error('Error al actualizar ClientConfig:', error);
+      });
+  }
+
+  deleteClientConfig(id: string): void {
+    const clientConfig = this.clientConfigsSignal().find(c => c.id === id);
+    if (!clientConfig) {
+      console.error('ClientConfig no encontrado:', id);
+      return;
+    }
+
+    // Find all connections with this clientName and delete them
+    const connectionsToDelete = this.graphqlConnectionsSignal().filter(
+      conn => conn.clientName === clientConfig.name
+    );
+
+    const deletePromises = connectionsToDelete.map(conn =>
+      this.graphqlService.deleteConnection(conn.id).toPromise()
+    );
+
+    Promise.all(deletePromises)
+      .then(() => {
+        console.log('ClientConfig eliminado exitosamente:', id);
+        // Update the signal by removing this config
+        this.clientConfigsSignal.update(configs =>
+          configs.filter(c => c.id !== id)
+        );
+      })
+      .catch(error => {
+        console.error('Error al eliminar ClientConfig:', error);
+      });
   }
 
   loadClientConfig(id: string) {
@@ -919,106 +1017,463 @@ export class ConfigService {
     this.graphqlConnectionsSignal.set(connections);
   }
 
-  private saveClientConfigsToLocalStorage() {
-    localStorage.setItem('datanath_client_configs', JSON.stringify(this.clientConfigsSignal()));
+  loadClientConfigsFromGraphQL(): void {
+    // Guard: evitar cargas múltiples simultáneas
+    if (this.isLoadingClientConfigs) {
+      console.log('⏸️ Ya hay una carga en proceso, ignorando...');
+      return;
+    }
+
+    this.isLoadingClientConfigs = true;
+    console.log('🔄 Iniciando carga de ClientConfigs y Connections...');
+    console.time('⏱️ Total loadClientConfigsFromGraphQL');
+    console.time('⏱️ GraphQL queries (backend)');
+
+    // Cargar ClientConfigs y Connections en paralelo
+    forkJoin({
+      clientConfigs: this.graphqlService.getClientConfigs(),
+      connections: this.graphqlService.getAllConnections()
+    }).subscribe({
+      next: ({ clientConfigs, connections }) => {
+        console.timeEnd('⏱️ GraphQL queries (backend)');
+        console.time('⏱️ Data processing (frontend)');
+
+        const clientConfigsData = clientConfigs.data.getClientConfigs;
+        const connectionsData = connections.data.getConnections.items;
+
+        console.log(`📊 ClientConfigs encontrados: ${clientConfigsData.length}`);
+        console.log(`📊 Connections encontradas: ${connectionsData.length}`);
+
+        // Store all connections in the graphqlConnectionsSignal
+        this.graphqlConnectionsSignal.set(connectionsData);
+
+        // PRIMERO: Consolidar ClientConfigs duplicados (SIEMPRE)
+        console.time('⏱️ Consolidation');
+        this.consolidateDuplicateClientConfigs(clientConfigsData).subscribe({
+          next: (result: { configs: any[], hadDuplicates: boolean }) => {
+            console.timeEnd('⏱️ Consolidation');
+            const consolidatedConfigs = result.configs;
+            const hadDuplicates = result.hadDuplicates;
+
+            console.log(`✅ Consolidación completada. ClientConfigs finales: ${consolidatedConfigs.length}`);
+
+            // SEGUNDO: Detectar conexiones legacy (sin clientConfigId)
+            const legacyConnectionsByClientName = new Map<string, any[]>();
+            const modernConnections: any[] = [];
+
+            connectionsData.forEach((conn: any) => {
+              if (!conn.clientConfigId && conn.clientName) {
+                // Conexión legacy sin clientConfigId
+                if (!legacyConnectionsByClientName.has(conn.clientName)) {
+                  legacyConnectionsByClientName.set(conn.clientName, []);
+                }
+                legacyConnectionsByClientName.get(conn.clientName)!.push(conn);
+              } else if (conn.clientConfigId) {
+                // Conexión moderna con clientConfigId
+                modernConnections.push(conn);
+              }
+            });
+
+            // Si hay conexiones legacy, migrarlas
+            if (legacyConnectionsByClientName.size > 0) {
+              console.log(`🔄 Migrando ${legacyConnectionsByClientName.size} clientes legacy...`);
+              this.migrateLegacyConnectionsOnly(legacyConnectionsByClientName, consolidatedConfigs);
+            } else {
+              console.log('✅ No hay conexiones legacy, procesando normalmente...');
+              console.log(`📦 Conexiones modernas (con clientConfigId): ${modernConnections.length}`);
+
+              // Solo recargar si hubo consolidación, sino usar los datos actuales
+              if (hadDuplicates) {
+                console.log('🔄 Recargando datos después de consolidación...');
+                this.reloadAfterConsolidation();
+              } else {
+                console.log('✅ No hubo cambios, usando datos actuales');
+                console.time('⏱️ buildClientConfigsFromData');
+                this.buildClientConfigsFromData(consolidatedConfigs, connectionsData);
+                console.timeEnd('⏱️ buildClientConfigsFromData');
+                console.timeEnd('⏱️ Data processing (frontend)');
+                console.timeEnd('⏱️ Total loadClientConfigsFromGraphQL');
+                this.isLoadingClientConfigs = false; // Liberar el flag
+              }
+            }
+          },
+          error: (consolidationError: any) => {
+            console.error('❌ Error durante la consolidación:', consolidationError);
+            console.timeEnd('⏱️ Data processing (frontend)');
+            console.timeEnd('⏱️ Total loadClientConfigsFromGraphQL');
+            this.isLoadingClientConfigs = false; // Liberar el flag en caso de error
+          }
+        });
+      },
+      error: (error) => {
+        console.error('Error al cargar ClientConfigs desde GraphQL:', error);
+        console.timeEnd('⏱️ GraphQL queries (backend)');
+        console.timeEnd('⏱️ Total loadClientConfigsFromGraphQL');
+        this.isLoadingClientConfigs = false; // Liberar el flag en caso de error
+      }
+    });
   }
 
-  loadClientConfigsFromLocalStorage() {
-    const stored = localStorage.getItem('datanath_client_configs');
-    if (stored) {
-      try {
-        const configs = JSON.parse(stored);
-        this.clientConfigsSignal.set(configs);
-      } catch (error) {
-        console.error('Error loading client configs:', error);
+  private reloadAfterConsolidation(): void {
+    // Recargar datos después de consolidación, pero SIN consolidar de nuevo (evitar loop)
+    console.log('🔄 Recargando datos después de consolidación...');
+    console.time('⏱️ Reload after consolidation');
+    forkJoin({
+      clientConfigs: this.graphqlService.getClientConfigs(),
+      connections: this.graphqlService.getAllConnections()
+    }).subscribe({
+      next: ({ clientConfigs, connections }) => {
+        const clientConfigsData = clientConfigs.data.getClientConfigs;
+        const connectionsData = connections.data.getConnections.items;
+        console.log(`📊 Recarga: ClientConfigs: ${clientConfigsData.length}, Connections: ${connectionsData.length}`);
+        this.graphqlConnectionsSignal.set(connectionsData);
+        console.time('⏱️ buildClientConfigsFromData (reload)');
+        this.buildClientConfigsFromData(clientConfigsData, connectionsData);
+        console.timeEnd('⏱️ buildClientConfigsFromData (reload)');
+        console.timeEnd('⏱️ Reload after consolidation');
+        console.timeEnd('⏱️ Data processing (frontend)');
+        console.timeEnd('⏱️ Total loadClientConfigsFromGraphQL');
+        this.isLoadingClientConfigs = false; // Liberar el flag
+      },
+      error: (error) => {
+        console.error('❌ Error al recargar después de consolidación:', error);
+        console.timeEnd('⏱️ Reload after consolidation');
+        console.timeEnd('⏱️ Data processing (frontend)');
+        console.timeEnd('⏱️ Total loadClientConfigsFromGraphQL');
+        this.isLoadingClientConfigs = false; // Liberar el flag en caso de error
       }
+    });
+  }
+
+  private migrateLegacyConnectionsOnly(legacyConnectionsByClientName: Map<string, any[]>, consolidatedConfigs: any[]): void {
+    // Migrar conexiones legacy (sin consolidación, eso ya se hizo)
+    const migrationTasks: any[] = [];
+
+    legacyConnectionsByClientName.forEach((connections, clientName) => {
+      // Buscar si ya existe un ClientConfig con este nombre
+      const existingConfig = consolidatedConfigs.find((cc: any) => cc.name === clientName);
+
+      if (existingConfig) {
+        // Ya existe, solo actualizar las conexiones
+        console.log(`📌 ClientConfig ya existe para ${clientName}, actualizando conexiones...`);
+        const updateTasks = connections.map((conn: any) => {
+          const updateInput = {
+            clientConfigId: existingConfig.id,
+            clientName: conn.clientName,
+            clientId: conn.clientId || '',
+            servidor: conn.servidor,
+            puerto: conn.puerto,
+            user: conn.user,
+            password: conn.password,
+            repository: conn.repository,
+            adapter: conn.adapter,
+            associatedStores: conn.associatedStores || [],
+            storeFilterField: conn.storeFilterField || null
+          };
+          return this.graphqlService.updateConnection(conn.id, updateInput);
+        });
+        migrationTasks.push(forkJoin(updateTasks));
+      } else {
+        // No existe, crear nuevo ClientConfig
+        const clientConfigInput = {
+          name: clientName,
+          description: 'Migrado automáticamente',
+          structureType: 'same'
+        };
+
+        const createTask = this.graphqlService.createClientConfig(clientConfigInput).pipe(
+          switchMap((response: any) => {
+            const newClientConfig = response.data.createClientConfig;
+            console.log(`✅ ClientConfig creado para ${clientName}: ${newClientConfig.id}`);
+
+            const updateTasks = connections.map((conn: any) => {
+              const updateInput = {
+                clientConfigId: newClientConfig.id,
+                clientName: conn.clientName,
+                clientId: conn.clientId || '',
+                servidor: conn.servidor,
+                puerto: conn.puerto,
+                user: conn.user,
+                password: conn.password,
+                repository: conn.repository,
+                adapter: conn.adapter,
+                associatedStores: conn.associatedStores || [],
+                storeFilterField: conn.storeFilterField || null
+              };
+              return this.graphqlService.updateConnection(conn.id, updateInput);
+            });
+
+            return forkJoin(updateTasks);
+          })
+        );
+
+        migrationTasks.push(createTask);
+      }
+    });
+
+    // Ejecutar todas las migraciones
+    if (migrationTasks.length > 0) {
+      forkJoin(migrationTasks).subscribe({
+        next: () => {
+          console.log('✅ Migración completada. Recargando datos...');
+          this.isLoadingClientConfigs = false; // Liberar el flag antes de recargar
+          this.loadClientConfigsFromGraphQL();
+        },
+        error: (error) => {
+          console.error('❌ Error durante la migración:', error);
+          this.isLoadingClientConfigs = false; // Liberar el flag antes de recargar
+          this.reloadAfterConsolidation();
+        }
+      });
+    } else {
+      // No hay tareas de migración, liberar el flag
+      this.isLoadingClientConfigs = false;
     }
   }
 
-  // Saved Configuration management
-  saveConfiguration(name: string, description: string): SavedConfiguration {
-    const config = this.configSignal();
-    const scenarios = this.scenariosSignal(); // Obtener escenarios actuales
+  private consolidateDuplicateClientConfigs(clientConfigs: any[]): any {
+    // Agrupar ClientConfigs por nombre
+    const configsByName = new Map<string, any[]>();
+    clientConfigs.forEach((config: any) => {
+      if (!configsByName.has(config.name)) {
+        configsByName.set(config.name, []);
+      }
+      configsByName.get(config.name)!.push(config);
+    });
 
-    const savedConfig: SavedConfiguration = {
-      id: Date.now().toString(),
+    // Identificar duplicados y consolidar
+    const consolidationTasks: any[] = [];
+    const configsToKeep: any[] = [];
+
+    configsByName.forEach((configs, name) => {
+      if (configs.length > 1) {
+        console.log(`🔄 Consolidando ${configs.length} ClientConfigs duplicados de "${name}"...`);
+
+        // Ordenar por fecha de creación (más antiguo primero)
+        configs.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+        const primaryConfig = configs[0]; // El más antiguo
+        const duplicates = configs.slice(1); // Los demás
+
+        configsToKeep.push(primaryConfig);
+
+        // Cargar conexiones y reasignar al primario
+        duplicates.forEach(duplicate => {
+          const task = this.graphqlService.getAllConnections().pipe(
+            switchMap((response: any) => {
+              const allConnections = response.data.getConnections.items;
+              const connectionsToMove = allConnections.filter((conn: any) => conn.clientConfigId === duplicate.id);
+
+              if (connectionsToMove.length > 0) {
+                console.log(`📦 Moviendo ${connectionsToMove.length} conexiones de ${duplicate.id} a ${primaryConfig.id}`);
+
+                const updateTasks = connectionsToMove.map((conn: any) => {
+                  const updateInput = {
+                    clientConfigId: primaryConfig.id,
+                    clientName: conn.clientName,
+                    clientId: conn.clientId || '',
+                    servidor: conn.servidor,
+                    puerto: conn.puerto,
+                    user: conn.user,
+                    password: conn.password,
+                    repository: conn.repository,
+                    adapter: conn.adapter,
+                    associatedStores: conn.associatedStores || [],
+                    storeFilterField: conn.storeFilterField || null
+                  };
+                  return this.graphqlService.updateConnection(conn.id, updateInput);
+                });
+
+                return forkJoin(updateTasks).pipe(
+                  switchMap(() => {
+                    console.log(`🗑️ Eliminando ClientConfig duplicado: ${duplicate.id}`);
+                    return this.graphqlService.deleteClientConfig(duplicate.id);
+                  })
+                );
+              } else {
+                // No tiene conexiones, simplemente eliminar
+                console.log(`🗑️ Eliminando ClientConfig duplicado vacío: ${duplicate.id}`);
+                return this.graphqlService.deleteClientConfig(duplicate.id);
+              }
+            })
+          );
+
+          consolidationTasks.push(task);
+        });
+      } else {
+        configsToKeep.push(configs[0]);
+      }
+    });
+
+    if (consolidationTasks.length > 0) {
+      return forkJoin(consolidationTasks).pipe(
+        map(() => {
+          console.log('✅ Consolidación de duplicados completada');
+          return { configs: configsToKeep, hadDuplicates: true };
+        })
+      );
+    } else {
+      // No hay duplicados, retornar los configs originales inmediatamente
+      console.log('✅ No hay duplicados, continuando...');
+      return of({ configs: clientConfigs, hadDuplicates: false });
+    }
+  }
+
+  private buildClientConfigsFromData(clientConfigsData: any[], connectionsData: any[]): void {
+    console.time('⏱️ Map connections by clientConfigId');
+    // Map connections by clientConfigId
+    const connectionsByClientConfigId = new Map<string, any[]>();
+    connectionsData.forEach((conn: any) => {
+      if (!conn.clientConfigId) return;
+
+      if (!connectionsByClientConfigId.has(conn.clientConfigId)) {
+        connectionsByClientConfigId.set(conn.clientConfigId, []);
+      }
+      connectionsByClientConfigId.get(conn.clientConfigId)!.push(conn);
+    });
+    console.timeEnd('⏱️ Map connections by clientConfigId');
+
+    console.time('⏱️ Build ClientConfig objects');
+    // Build ClientConfigs from clientconfig data + connections
+    const clientConfigsResult: ClientConfig[] = clientConfigsData.map((cc: any) => {
+      const clientConnections = connectionsByClientConfigId.get(cc.id) || [];
+
+      return {
+        id: cc.id,
+        name: cc.name,
+        description: cc.description || '',
+        structureType: cc.structureType || 'same',
+        stores: clientConnections.map((conn: any) => ({
+          _connectionId: conn.id,
+          servidor: conn.servidor,
+          puerto: conn.puerto,
+          user: conn.user,
+          password: conn.password,
+          repository: conn.repository,
+          adapter: conn.adapter,
+          associatedStores: conn.associatedStores || [],
+          storeFilterField: conn.storeFilterField || undefined
+        })),
+        createdAt: cc.createdAt
+      };
+    });
+    console.timeEnd('⏱️ Build ClientConfig objects');
+
+    console.time('⏱️ Set signal');
+    this.clientConfigsSignal.set(clientConfigsResult);
+    console.timeEnd('⏱️ Set signal');
+    console.log('ClientConfigs cargados desde GraphQL:', clientConfigsResult.length);
+  }
+
+  // Saved Configuration management
+  saveConfiguration(name: string, description: string): void {
+    const config = this.configSignal();
+    const scenarios = this.scenariosSignal();
+
+    const input = {
       name,
-      description,
-      config: { ...config },
+      description: description || '',
+      config: JSON.stringify(config),
       scenarios: scenarios.map(s => ({
         id: s.id,
         name: s.name,
         isReadOnly: s.isReadOnly,
         assignments: s._assignmentsArray || [],
         storeFilter: s.storeFilter
-      })),
-      createdAt: new Date().toISOString()
+      }))
     };
-    this.savedConfigsSignal.update(configs => [...configs, savedConfig]);
-    this.saveSavedConfigsToLocalStorage();
 
-    // Establecer como la configuración cargada actualmente
-    this.currentLoadedConfigIdSignal.set(savedConfig.id);
+    this.graphqlService.saveSavedConfiguration(input).subscribe({
+      next: (response) => {
+        const savedConfig = response.data.saveSavedConfiguration;
+        // Parsear el config de string a objeto
+        savedConfig.config = JSON.parse(savedConfig.config);
 
-    return savedConfig;
+        this.savedConfigsSignal.update(configs => [...configs, savedConfig]);
+        this.currentLoadedConfigIdSignal.set(savedConfig.id);
+        console.log('Configuración guardada exitosamente:', savedConfig.id);
+      },
+      error: (error) => {
+        console.error('Error al guardar configuración:', error);
+      }
+    });
   }
 
   loadSavedConfiguration(id: string): void {
     const savedConfig = this.savedConfigsSignal().find(c => c.id === id);
     if (savedConfig) {
-      this.configSignal.set({ ...savedConfig.config });
-
-      // Cargar escenarios si existen
-      if (savedConfig.scenarios && savedConfig.scenarios.length > 0) {
-        const loadedScenarios = savedConfig.scenarios.map(s => ({
-          id: s.id,
-          name: s.name,
-          isReadOnly: s.isReadOnly,
-          assignments: new Map(s.assignments),
-          _assignmentsArray: s.assignments,
-          storeFilter: s.storeFilter
-        }));
-        this.scenariosSignal.set(loadedScenarios);
-      }
-
-      // Guardar el ID de la configuración cargada
+      this.applyLoadedConfig(savedConfig);
       this.currentLoadedConfigIdSignal.set(id);
-
-      // Actualizar lastUsed
       this.updateSavedConfigLastUsed(id);
+    } else {
+      // Si no está en memoria, buscar en GraphQL
+      this.graphqlService.getSavedConfigurationById(id).subscribe({
+        next: (response) => {
+          const config = response.data.getSavedConfigurationById;
+          if (config) {
+            config.config = JSON.parse(config.config);
+            this.applyLoadedConfig(config);
+            this.currentLoadedConfigIdSignal.set(id);
+            this.updateSavedConfigLastUsed(id);
+          }
+        },
+        error: (error) => {
+          console.error('Error al cargar configuración:', error);
+        }
+      });
     }
   }
 
-  updateConfiguration(id: string, name: string, description: string): SavedConfiguration | null {
+  private applyLoadedConfig(savedConfig: SavedConfiguration): void {
+    this.configSignal.set({ ...savedConfig.config });
+
+    // Cargar escenarios si existen
+    if (savedConfig.scenarios && savedConfig.scenarios.length > 0) {
+      const loadedScenarios = savedConfig.scenarios.map(s => ({
+        id: s.id,
+        name: s.name,
+        isReadOnly: s.isReadOnly,
+        assignments: new Map(s.assignments),
+        _assignmentsArray: s.assignments,
+        storeFilter: s.storeFilter
+      }));
+      this.scenariosSignal.set(loadedScenarios);
+    }
+  }
+
+  updateConfiguration(id: string, name: string, description: string): void {
     const config = this.configSignal();
     const scenarios = this.scenariosSignal();
 
-    const existingConfigIndex = this.savedConfigsSignal().findIndex(c => c.id === id);
-    if (existingConfigIndex === -1) {
-      return null; // Config not found
-    }
-
-    const updatedConfig: SavedConfiguration = {
-      id, // Mantener el mismo ID
+    const input = {
       name,
-      description,
-      config: { ...config },
+      description: description || '',
+      config: JSON.stringify(config),
       scenarios: scenarios.map(s => ({
         id: s.id,
         name: s.name,
         isReadOnly: s.isReadOnly,
         assignments: s._assignmentsArray || [],
         storeFilter: s.storeFilter
-      })),
-      createdAt: this.savedConfigsSignal()[existingConfigIndex].createdAt, // Mantener fecha de creación
-      lastUsed: new Date().toISOString() // Actualizar lastUsed
+      }))
     };
 
-    this.savedConfigsSignal.update(configs =>
-      configs.map((c, idx) => idx === existingConfigIndex ? updatedConfig : c)
-    );
-    this.saveSavedConfigsToLocalStorage();
-    return updatedConfig;
+    this.graphqlService.updateSavedConfiguration(id, input).subscribe({
+      next: (response) => {
+        const updatedConfig = response.data.updateSavedConfiguration;
+        if (updatedConfig) {
+          updatedConfig.config = JSON.parse(updatedConfig.config);
+
+          this.savedConfigsSignal.update(configs =>
+            configs.map(c => c.id === id ? updatedConfig : c)
+          );
+          console.log('Configuración actualizada exitosamente:', id);
+        }
+      },
+      error: (error) => {
+        console.error('Error al actualizar configuración:', error);
+      }
+    });
   }
 
   clearCurrentLoadedConfig(): void {
@@ -1026,36 +1481,57 @@ export class ConfigService {
   }
 
   deleteSavedConfiguration(id: string): void {
-    this.savedConfigsSignal.update(configs =>
-      configs.filter(c => c.id !== id)
-    );
-    this.saveSavedConfigsToLocalStorage();
+    this.graphqlService.deleteSavedConfiguration(id).subscribe({
+      next: (response) => {
+        const success = response.data.deleteSavedConfiguration;
+        if (success) {
+          this.savedConfigsSignal.update(configs =>
+            configs.filter(c => c.id !== id)
+          );
+          console.log('Configuración eliminada exitosamente:', id);
+        }
+      },
+      error: (error) => {
+        console.error('Error al eliminar configuración:', error);
+      }
+    });
   }
 
   private updateSavedConfigLastUsed(id: string): void {
-    this.savedConfigsSignal.update(configs =>
-      configs.map(c =>
-        c.id === id
-          ? { ...c, lastUsed: new Date().toISOString() }
-          : c
-      )
-    );
-    this.saveSavedConfigsToLocalStorage();
-  }
-
-  private saveSavedConfigsToLocalStorage(): void {
-    localStorage.setItem('datanath_saved_configs', JSON.stringify(this.savedConfigsSignal()));
-  }
-
-  loadSavedConfigsFromLocalStorage(): void {
-    const stored = localStorage.getItem('datanath_saved_configs');
-    if (stored) {
-      try {
-        const configs = JSON.parse(stored);
-        this.savedConfigsSignal.set(configs);
-      } catch (error) {
-        console.error('Error loading saved configs:', error);
+    this.graphqlService.updateLastUsed(id).subscribe({
+      next: (response) => {
+        const updatedConfig = response.data.updateLastUsed;
+        if (updatedConfig) {
+          this.savedConfigsSignal.update(configs =>
+            configs.map(c =>
+              c.id === id
+                ? { ...c, lastUsed: updatedConfig.lastUsed }
+                : c
+            )
+          );
+        }
+      },
+      error: (error) => {
+        console.error('Error al actualizar lastUsed:', error);
       }
-    }
+    });
+  }
+
+  loadSavedConfigsFromGraphQL(): void {
+    this.graphqlService.getSavedConfigurations().subscribe({
+      next: (response) => {
+        const configs = response.data.getSavedConfigurations;
+        // Parsear el config de cada configuración
+        const parsedConfigs = configs.map((c: any) => ({
+          ...c,
+          config: JSON.parse(c.config)
+        }));
+        this.savedConfigsSignal.set(parsedConfigs);
+        console.log('Configuraciones cargadas desde GraphQL:', parsedConfigs.length);
+      },
+      error: (error) => {
+        console.error('Error al cargar configuraciones desde GraphQL:', error);
+      }
+    });
   }
 }

@@ -163,7 +163,7 @@ export class ConnectionGroupsStepComponent implements OnInit {
       .join('|');
 
     // Load client configs and GraphQL connections
-    this.configService.loadClientConfigsFromLocalStorage();
+    this.configService.loadClientConfigsFromGraphQL();
     this.loadConnectionsFromGraphQL();
   }
 

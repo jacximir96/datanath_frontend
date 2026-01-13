@@ -26,7 +26,7 @@ export class ClientStepComponent implements OnInit {
   selectedClientIds: string[] = [];
 
   ngOnInit() {
-    this.configService.loadClientConfigsFromLocalStorage();
+    this.configService.loadClientConfigsFromGraphQL();
   }
 
   get clients(): ClientConfig[] {

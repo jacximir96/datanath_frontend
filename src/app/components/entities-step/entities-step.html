@@ -209,6 +209,23 @@
             </div>
           }
 
+          <!-- Error Display -->
+          @if (loadingError()) {
+            <mat-card class="error-card" style="background: #ffebee; border-left: 4px solid #f44336; margin: 16px 0;">
+              <mat-card-content style="display: flex; align-items: flex-start; gap: 12px;">
+                <mat-icon color="warn" style="margin-top: 2px;">error</mat-icon>
+                <div style="flex: 1;">
+                  <h4 style="margin: 0 0 8px 0; color: #c62828;">Error al cargar datos</h4>
+                  <p style="margin: 0; color: #666;">{{ loadingError() }}</p>
+                  <button mat-button color="primary" (click)="onClientSelected(selectedClient()!)" style="margin-top: 12px;">
+                    <mat-icon>refresh</mat-icon>
+                    Reintentar
+                  </button>
+                </div>
+              </mat-card-content>
+            </mat-card>
+          }
+
           <!-- Step 2: Select Table -->
           @if (selectedOrigin()) {
             <div class="step-section">

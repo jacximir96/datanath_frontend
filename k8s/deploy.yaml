@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment-svc-datanath-frontend-dev
+  namespace: app-svc-datanath-frontend-dev
+  labels:
+    app: group-app-svc-datanath-frontend-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: group-app-svc-datanath-frontend-dev
+      tier: deployment-svc-datanath-frontend-dev
+      track: stable
+  template:
+    metadata:
+      labels:
+        app: group-app-svc-datanath-frontend-dev
+        tier: deployment-svc-datanath-frontend-dev
+        track: stable
+    spec:
+      containers:
+        - name: svc-datanath-frontend-dev
+          image: "kfcregistry.azurecr.io/svc-datanath-frontend-dev:v1.0.0"
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "1024Mi"
+              ephemeral-storage: 100Mi
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+              ephemeral-storage: 50Mi
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5223

@@ -1,4 +1,5 @@
 export interface Origin {
+  _connectionId?: string; // ID de la Connection en GraphQL (para tracking)
   servidor: string;
   puerto: string;
   user: string;

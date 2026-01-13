@@ -33,8 +33,24 @@
       </div>
     }
     @if (origins.length > 0) {
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <p style="margin: 0;"><strong>Total: {{ origins.length }} orígenes</strong></p>
+        @if (totalOriginsPages > 1) {
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button mat-icon-button (click)="previousOriginsPage()" [disabled]="originsCurrentPage() === 0">
+              <mat-icon>chevron_left</mat-icon>
+            </button>
+            <span>Página {{ originsCurrentPage() + 1 }} de {{ totalOriginsPages }}</span>
+            <button mat-icon-button (click)="nextOriginsPage()" [disabled]="originsCurrentPage() >= totalOriginsPages - 1">
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </div>
+        }
+      </div>
+
       <mat-accordion>
-        @for (origin of origins; track $index) {
+        @for (origin of paginatedOrigins(); track $index) {
+          @let actualIndex = originsCurrentPage() * originsPageSize + $index;
           <mat-expansion-panel>
             <mat-expansion-panel-header>
               <mat-panel-title>
@@ -50,7 +66,7 @@
               <p><strong>Usuario:</strong> {{ origin.user }}</p>
               <p><strong>Repositorio:</strong> {{ origin.repository }}</p>
               <p><strong>Adaptador:</strong> {{ origin.adapter }}</p>
-              <button mat-raised-button color="warn" (click)="removeOrigin($index)">
+              <button mat-raised-button color="warn" (click)="removeOrigin(actualIndex)">
                 <mat-icon>delete</mat-icon>
                 Eliminar
               </button>
