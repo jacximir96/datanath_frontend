@@ -182,6 +182,15 @@ export class TransformationStepComponent implements OnInit {
     this.configService.loadTemplatesFromLocalStorage();
     this.autoDetectMerges();
     this.onTransformationTypeChange(); // Set default value on init
+
+    // Set default country to ECU if not set
+    const config = this.configService.config();
+    if (!config.transformation.country) {
+      this.configService.updateTransformation({
+        ...config.transformation,
+        country: 'ECU'
+      });
+    }
   }
 
   autoDetectMerges() {
@@ -509,5 +518,37 @@ export class TransformationStepComponent implements OnInit {
 
   getMetadataForEntity(entityName: string): { columns: ColumnInfo[], relations: RelationInfo[], loading: boolean } | undefined {
     return this.entityMetadata().get(entityName);
+  }
+
+  // Validation for stepper
+  isValid(): boolean {
+    const transformation = this.configService.config().transformation;
+
+    // 1. Transformation type (code) is required
+    if (!transformation.code || transformation.code.trim().length === 0) {
+      return false;
+    }
+
+    // 2. Country is always required
+    if (!transformation.country || transformation.country.trim().length === 0) {
+      return false;
+    }
+
+    // 3. If T012: output configuration (filter with wrap_structure) is required
+    if (transformation.code === 'T012') {
+      if (!transformation.filter || transformation.filter.length === 0) {
+        return false;
+      }
+      // At least one filter should have wrap_structure configured
+      const hasWrapStructure = transformation.filter.some((f: any) =>
+        f.wrap_structure && Object.keys(f.wrap_structure).length > 0
+      );
+      if (!hasWrapStructure) {
+        return false;
+      }
+    }
+
+    // If T010: only code and country are required (already validated above)
+    return true;
   }
 }

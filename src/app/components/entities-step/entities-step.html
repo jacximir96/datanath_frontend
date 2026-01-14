@@ -122,7 +122,7 @@
                       <h5 class="detail-header">Filtros:</h5>
                       <div class="filters-grid">
                         @for (filter of entity.filters; track filter.name) {
-                          <mat-chip>{{ filter.name }} {{ filter.operator }} {{ filter.value }}</mat-chip>
+                          <mat-chip>{{ filter.name }} {{ getOperatorLabel(filter.operator) }} {{ filter.value }}</mat-chip>
                         }
                       </div>
                     }
@@ -365,7 +365,7 @@
                         @for (filter of currentEntityFilters(); track $index) {
                           <mat-chip class="filter-chip-new">
                             <span class="filter-field">{{ filter.name }}</span>
-                            <span class="filter-operator">{{ filter.operator }}</span>
+                            <span class="filter-operator">{{ getOperatorLabel(filter.operator) }}</span>
                             <span class="filter-value">{{ filter.value }}</span>
                             <button mat-icon-button
                                     (click)="removeFilterFromDynamicEntity($index)"
@@ -415,10 +415,14 @@
                           <mat-form-field appearance="outline">
                             <mat-label>Operador</mat-label>
                             <mat-select [(ngModel)]="newFilterOperator">
-                              @for (op of operators; track op) {
-                                <mat-option [value]="op">{{ op }}</mat-option>
+                              @for (op of operators; track op.value) {
+                                <mat-option [value]="op.value" [matTooltip]="op.hint">
+                                  {{ op.label }}
+                                  <span style="color: #999; font-size: 0.85em; margin-left: 8px;">({{ op.category }})</span>
+                                </mat-option>
                               }
                             </mat-select>
+                            <mat-hint>Selecciona el tipo de comparación</mat-hint>
                           </mat-form-field>
 
                           <mat-form-field appearance="outline">
@@ -597,10 +601,14 @@
               <mat-form-field appearance="outline">
                 <mat-label>Operador</mat-label>
                 <mat-select [(ngModel)]="newFilterOperator">
-                  @for (op of operators; track op) {
-                    <mat-option [value]="op">{{ op }}</mat-option>
+                  @for (op of operators; track op.value) {
+                    <mat-option [value]="op.value" [matTooltip]="op.hint">
+                      {{ op.label }}
+                      <span style="color: #999; font-size: 0.85em; margin-left: 8px;">({{ op.category }})</span>
+                    </mat-option>
                   }
                 </mat-select>
+                <mat-hint>Selecciona el tipo de comparación</mat-hint>
               </mat-form-field>
               <mat-form-field appearance="outline">
                 <mat-label>Valor del Filtro</mat-label>

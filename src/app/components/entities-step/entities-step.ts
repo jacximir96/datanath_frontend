@@ -141,7 +141,31 @@ export class EntitiesStepComponent implements OnInit {
   newPropertyName = '';
   newPropertyType = 'text';
 
-  operators = ['equals', 'contains', 'startsWith', 'endsWith', 'greaterThan', 'lessThan', 'in'];
+  operators = [
+    // Text operators
+    { value: 'equals', label: 'Igual a', hint: 'Valor exacto (ej: "Juan")', category: 'Texto' },
+    { value: 'not_equals', label: 'Diferente de', hint: 'No es igual (ej: "Pedro")', category: 'Texto' },
+    { value: 'contains', label: 'Contiene', hint: 'Texto parcial (ej: "ana")', category: 'Texto' },
+    { value: 'starts_with', label: 'Empieza con', hint: 'Comienza con (ej: "Dr.")', category: 'Texto' },
+
+    // Number operators
+    { value: 'greater_than', label: 'Mayor que', hint: 'Número > valor (ej: 100)', category: 'Números' },
+    { value: 'less_than', label: 'Menor que', hint: 'Número < valor (ej: 50)', category: 'Números' },
+    { value: 'greater_than_or_equal', label: 'Mayor o igual', hint: 'Número >= valor (ej: 100)', category: 'Números' },
+    { value: 'less_than_or_equal', label: 'Menor o igual', hint: 'Número <= valor (ej: 50)', category: 'Números' },
+    { value: 'between', label: 'Entre', hint: 'Rango (ej: "10,100")', category: 'Números' },
+
+    // Date operators
+    { value: 'equals_date', label: 'Fecha igual a', hint: 'Fecha exacta (ej: "2024-01-15")', category: 'Fechas' },
+    { value: 'between_dates', label: 'Entre fechas', hint: 'Rango (ej: "2024-01-01,2024-12-31")', category: 'Fechas' },
+
+    // List operators
+    { value: 'in', label: 'Está en lista', hint: 'Uno de varios (ej: "A,B,C")', category: 'Listas' },
+    { value: 'not_in', label: 'No está en lista', hint: 'Ninguno de (ej: "X,Y,Z")', category: 'Listas' },
+
+    // Null operators
+    { value: 'equals_null', label: 'Es nulo', hint: 'Campo vacío o NULL', category: 'Nulos' }
+  ];
   dataTypes = ['text', 'number', 'date', 'boolean', 'int', 'varchar', 'datetime', 'decimal', 'bit'];
 
   ngOnInit(): void {
@@ -164,6 +188,8 @@ export class EntitiesStepComponent implements OnInit {
 
   // Dynamic mode functions
   onClientSelected(clientName: string): void {
+    console.log('🎯 [EntitiesStep] onClientSelected llamado con:', clientName);
+
     this.selectedClient.set(clientName);
     this.selectedTable.set(null);
     this.tableColumns.set([]);
@@ -171,26 +197,38 @@ export class EntitiesStepComponent implements OnInit {
     this.loadingError.set(null); // Clear any previous errors
 
     // Find the client in clientConfigs
-    const clientConfig = this.configService.clientConfigs().find(c => c.name === clientName);
+    const allClientConfigs = this.configService.clientConfigs();
+    console.log('📊 [EntitiesStep] Total ClientConfigs disponibles:', allClientConfigs.length);
+    console.log('📊 [EntitiesStep] Nombres:', allClientConfigs.map(c => c.name));
+
+    const clientConfig = allClientConfigs.find(c => c.name === clientName);
+    console.log('🔍 [EntitiesStep] ClientConfig encontrado:', !!clientConfig);
 
     if (clientConfig && clientConfig.stores.length > 0) {
+      console.log('✅ [EntitiesStep] Cliente tiene', clientConfig.stores.length, 'stores');
+      console.log('📋 [EntitiesStep] Repositories:', clientConfig.stores.map(s => s.repository));
+
       this.selectedClientConfig.set(clientConfig);
       this.availableOriginsForClient.set(clientConfig.stores);
 
       // Verificar el tipo de estructura del cliente
       const structureType = clientConfig.structureType || 'same'; // Por defecto 'same' para retrocompatibilidad
+      console.log('📐 [EntitiesStep] StructureType:', structureType);
 
       if (structureType === 'same') {
         // Todas las conexiones tienen la misma estructura - auto-seleccionar la primera
         const firstOrigin = clientConfig.stores[0];
+        console.log('🎯 [EntitiesStep] Auto-seleccionando primera:', firstOrigin.repository);
         this.selectedOrigin.set(firstOrigin);
         this.loadTablesForOrigin(firstOrigin);
         this.snackBar.open('✓ Cliente con misma estructura - Primera conexión seleccionada automáticamente', 'Cerrar', { duration: 3000 });
       } else {
         // Conexiones con diferentes estructuras - usuario debe seleccionar manualmente
+        console.log('⚠️ [EntitiesStep] Estructuras diferentes, selección manual');
         this.snackBar.open('Cliente con estructuras diferentes - Selecciona la conexión específica', 'Cerrar', { duration: 4000 });
       }
     } else {
+      console.log('❌ [EntitiesStep] No se encontró cliente o no tiene stores');
       this.selectedClientConfig.set(null);
       this.availableOriginsForClient.set([]);
       this.selectedOrigin.set(null);
@@ -926,6 +964,12 @@ export class EntitiesStepComponent implements OnInit {
     return group.entities.length > 0 &&
            group.entities[0].relations !== undefined &&
            group.entities[0].relations.length > 0;
+  }
+
+  // Helper method to get friendly operator label
+  getOperatorLabel(operatorValue: string): string {
+    const operator = this.operators.find(op => op.value === operatorValue);
+    return operator ? operator.label : operatorValue;
   }
 
   }

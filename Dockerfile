@@ -1,20 +1,23 @@
-# Usar Node.js 18 Alpine para imagen ligera
-FROM node:18-alpine
+# ===== STAGE 1: Build Angular =====
+FROM node:18-alpine AS build
 
-# Establecer directorio de trabajo
 WORKDIR /app
 
-# Copiar archivos de dependencias
 COPY package*.json ./
-
-# Instalar dependencias
 RUN npm install
 
-# Copiar todo el código fuente
 COPY . .
+RUN npm run build -- --configuration production
 
-# Exponer puerto 4200
+# ===== STAGE 2: Nginx =====
+FROM nginx:alpine
+
+RUN rm /etc/nginx/conf.d/default.conf
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# ⚠️ AJUSTA ESTE NOMBRE SI ES NECESARIO
+COPY --from=build /app/dist/datanath-frontend /usr/share/nginx/html
+
 EXPOSE 4200
 
-# Comando para ejecutar la aplicación
-CMD ["npm", "start", "--", "--host", "0.0.0.0", "--port", "4200"]
+CMD ["nginx", "-g", "daemon off;"]

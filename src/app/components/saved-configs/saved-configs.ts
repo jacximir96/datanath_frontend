@@ -232,4 +232,12 @@ export class SavedConfigsComponent implements OnInit {
     this.previewConfigId = null;
     this.previewJsonData = null;
   }
+
+  getEntitiesCount(config: SavedConfiguration): number {
+    // Contar entidades del modelo legacy
+    const legacyCount = config.config.entities?.length || 0;
+    // Contar entityGroups del modelo nuevo
+    const newCount = config.config.entityGroups?.length || 0;
+    return legacyCount + newCount;
+  }
 }

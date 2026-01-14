@@ -1,6 +1,6 @@
 <div class="container">
-  <mat-stepper #stepper>
-    <mat-step label="Cliente">
+  <mat-stepper #stepper linear>
+    <mat-step label="Cliente" [completed]="clientStep.isValid()">
       <app-client-step #clientStep></app-client-step>
       <div class="step-actions">
         <span class="spacer"></span>
@@ -9,7 +9,7 @@
       </div>
     </mat-step>
 
-    <mat-step label="Orígenes">
+    <mat-step label="Orígenes" [completed]="originsStep.isValid()">
       <app-origins-step #originsStep></app-origins-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>
@@ -19,7 +19,7 @@
       </div>
     </mat-step>
 
-    <mat-step label="Entidades">
+    <mat-step label="Entidades" [completed]="entitiesStep.isValid()">
       <app-entities-step #entitiesStep></app-entities-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>
@@ -29,16 +29,17 @@
       </div>
     </mat-step>
 
-    <mat-step label="Transformación">
-      <app-transformation-step></app-transformation-step>
+    <mat-step label="Transformación" [completed]="transformationStep.isValid()">
+      <app-transformation-step #transformationStep></app-transformation-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>
         <span class="spacer"></span>
-        <button mat-raised-button matStepperNext color="primary">Siguiente</button>
+        <button mat-raised-button matStepperNext color="primary"
+                [disabled]="!transformationStep.isValid()">Siguiente</button>
       </div>
     </mat-step>
 
-    <mat-step label="Destino">
+    <mat-step label="Destino" [completed]="targetStep.isValid()">
       <app-target-step #targetStep></app-target-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>
@@ -48,7 +49,7 @@
       </div>
     </mat-step>
 
-    <mat-step label="Grupos de Conexión">
+    <mat-step label="Grupos de Conexión" [optional]="true" [completed]="connectionGroupsStep.isValid()">
       <app-connection-groups-step #connectionGroupsStep></app-connection-groups-step>
       <div class="step-actions">
         <button mat-button matStepperPrevious>Atrás</button>

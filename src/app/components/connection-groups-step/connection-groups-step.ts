@@ -37,6 +37,9 @@ export class ConnectionGroupsStepComponent implements OnInit {
 
   readonly allOrigins = computed(() => this.configService.config().origins);
 
+  // Check if transformation type is T010 (groups not used)
+  readonly isT010 = computed(() => this.configService.config().transformation.code === 'T010');
+
   // Track selected stores for group generation
   selectedStoresForGroups = signal<Set<string>>(new Set());
 
@@ -50,10 +53,10 @@ export class ConnectionGroupsStepComponent implements OnInit {
     const entities = this.allEntities();
     const clientConfigs = this.configService.clientConfigs();
     const graphqlConnections = this.availableConnections();
+    const selectedClients = this.configService.config().clients;
 
     const clientsMap = new Map<string, { client: any, stores: any[], connection: any }>();
 
-    // Only check the FIRST entity
     const firstEntity = entities[0];
     if (!firstEntity || !firstEntity.originRepository) {
       return [];
@@ -64,26 +67,29 @@ export class ConnectionGroupsStepComponent implements OnInit {
     );
 
     if (client) {
-      // Encontrar la conexión específica que corresponde a este repository
+      if (!selectedClients.includes(client.name)) {
+        return [];
+      }
+
       const connection = client.stores.find(store => store.repository === firstEntity.originRepository);
 
-      // Si la conexión tiene items del catálogo asociados
       if (connection && connection.associatedStores && connection.associatedStores.length > 0) {
         const connectionKey = `${client.id}-${connection.repository}`;
 
-        // Buscar en las conexiones de GraphQL en lugar de localStorage
         const clientStores = connection.associatedStores
           .map((storeId: string) => {
             const conn = graphqlConnections.find(c => c.id === storeId);
-            if (conn) {
-              return {
-                id: conn.id,
-                code: conn.clientId,
-                name: conn.repository,
-                description: conn.clientName
-              };
+
+            if (!conn) {
+              return undefined;
             }
-            return undefined;
+
+            return {
+              id: conn.id,
+              code: conn.clientId,
+              name: conn.repository,
+              description: conn.clientName
+            };
           })
           .filter((s: any) => s !== undefined);
 
@@ -97,11 +103,13 @@ export class ConnectionGroupsStepComponent implements OnInit {
   private lastEntityCount = 0;
   private lastMaxConnections = 0;
   private lastFixedConnectionSignature = '';
+  private lastClientConfigsCount = 0;
 
   constructor() {
     // Auto-select stores when clients with stores are detected
     effect(() => {
       const clientsWithStores = this.clientsWithStores();
+
       if (clientsWithStores.length > 0) {
         const allStoreIds = new Set<string>();
         clientsWithStores.forEach(clientWithStores => {
@@ -137,6 +145,7 @@ export class ConnectionGroupsStepComponent implements OnInit {
       // Only recreate automatic scenarios if entities or connections changed
       const currentEntityCount = this.allEntities().length;
       const currentMaxConnections = this.calculateMaxConnections();
+      const currentClientConfigsCount = this.configService.clientConfigs().length;
 
       // Create signature of fixedConnection flags to detect changes
       const currentFixedSignature = this.allEntities()
@@ -145,10 +154,12 @@ export class ConnectionGroupsStepComponent implements OnInit {
 
       if (currentEntityCount !== this.lastEntityCount ||
           currentMaxConnections !== this.lastMaxConnections ||
-          currentFixedSignature !== this.lastFixedConnectionSignature) {
+          currentFixedSignature !== this.lastFixedConnectionSignature ||
+          currentClientConfigsCount !== this.lastClientConfigsCount) {
         this.lastEntityCount = currentEntityCount;
         this.lastMaxConnections = currentMaxConnections;
         this.lastFixedConnectionSignature = currentFixedSignature;
+        this.lastClientConfigsCount = currentClientConfigsCount;
         this.createAutomaticScenarios();
       }
     }, { allowSignalWrites: true });
@@ -158,6 +169,7 @@ export class ConnectionGroupsStepComponent implements OnInit {
     // Initialize on component load
     this.lastEntityCount = this.allEntities().length;
     this.lastMaxConnections = this.calculateMaxConnections();
+    this.lastClientConfigsCount = this.configService.clientConfigs().length;
     this.lastFixedConnectionSignature = this.allEntities()
       .map(e => `${e.name}:${e.fixedConnection || false}`)
       .join('|');
@@ -189,12 +201,15 @@ export class ConnectionGroupsStepComponent implements OnInit {
   private calculateMaxConnections(): number {
     const entities = this.allEntities();
     const clientConfigs = this.configService.clientConfigs();
+    const selectedClients = this.configService.config().clients;
     let maxConnections = 1;
 
     entities.forEach(entity => {
       if (!entity.originRepository) return;
 
-      const client = clientConfigs.find(c =>
+      // IMPORTANTE: Primero filtrar por clientes seleccionados, LUEGO buscar el que tiene el repository
+      const selectedClientConfigs = clientConfigs.filter(c => selectedClients.includes(c.name));
+      const client = selectedClientConfigs.find(c =>
         c.stores.some(store => store.repository === entity.originRepository)
       );
 
@@ -245,7 +260,9 @@ export class ConnectionGroupsStepComponent implements OnInit {
 
   private createAutomaticScenarios(): void {
     // If we have clients with associated stores, create store-based groups instead
-    if (this.clientsWithStores().length > 0) {
+    const clientsWithStores = this.clientsWithStores();
+
+    if (clientsWithStores.length > 0) {
       this.createStoreBasedGroupsAutomatic();
       return;
     }
@@ -253,18 +270,18 @@ export class ConnectionGroupsStepComponent implements OnInit {
     // Otherwise, use the normal flow (connection-based groups)
     const entities = this.allEntities();
     const clientConfigs = this.configService.clientConfigs();
+    const selectedClients = this.configService.config().clients;
 
     // Map each entity to its client and get connection counts
     const entityClientMap = new Map<string, { clientName: string, connectionCount: number }>();
     let maxConnections = 1; // At least 1 (the principal group)
 
     entities.forEach(entity => {
-      if (!entity.originRepository) {
-        return;
-      }
+      if (!entity.originRepository) return;
 
-      // Find which client this entity belongs to
-      const client = clientConfigs.find(c =>
+      // IMPORTANTE: Primero filtrar por clientes seleccionados, LUEGO buscar el que tiene el repository
+      const selectedClientConfigs = clientConfigs.filter(c => selectedClients.includes(c.name));
+      const client = selectedClientConfigs.find(c =>
         c.stores.some(store => store.repository === entity.originRepository)
       );
 
@@ -411,6 +428,7 @@ export class ConnectionGroupsStepComponent implements OnInit {
   // Create groups for selected stores AUTOMATICALLY (called from effect)
   private createStoreBasedGroupsAutomatic(): void {
     const selectedStores = Array.from(this.selectedStoresForGroups());
+
     if (selectedStores.length === 0) {
       // If no stores selected, clear scenarios
       this.configService.updateScenarios([]);

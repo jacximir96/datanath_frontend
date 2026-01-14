@@ -234,3 +234,10 @@ mat-form-field {
   color: #666;
   font-size: 0.9em;
 }
+
+/* Info card for T010 message */
+.info-card {
+  margin: 20px 0;
+  background-color: #f5f5f5;
+  border-left: 4px solid #2196F3;
+}

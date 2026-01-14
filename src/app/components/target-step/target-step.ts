@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
@@ -38,6 +38,11 @@ export class TargetStepComponent {
   dataTypes = ['text', 'number', 'date', 'boolean'];
   adapters = ['SqlServerSP', 'MySQL', 'PostgreSQL', 'Oracle', 'SqlServerTrust', 'SqlServer', 'MongoLocal', 'MongoSrv', 'blobStorage'];
 
+  // Computed signal to check if adapter is blobStorage
+  isBlobStorage = computed(() => {
+    return this.configService.config().target.connection.adapter === 'blobStorage';
+  });
+
   get target() {
     return this.configService.config().target;
   }
@@ -48,6 +53,14 @@ export class TargetStepComponent {
       ...target,
       connection: { ...target.connection, [field]: value }
     });
+
+    // Si se cambia a blobStorage, limpiar el campo toName de la entidad en edición
+    if (field === 'adapter' && value === 'blobStorage') {
+      const entity = this.newTargetEntity();
+      if (entity.toName) {
+        this.newTargetEntity.update(e => ({ ...e, toName: '' }));
+      }
+    }
   }
 
   addProperty() {

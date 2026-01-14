@@ -161,13 +161,32 @@ export class OrchestratorService {
       const clientName = config.client || 'Unknown Client';
       const groupId = config.origins[0]?.groupId || `Req ${i + 1}`;
 
+      // Generar ID único para este proceso
+      const processId = this.generateProcessId();
+
+      // Agregar proceso al monitor con estado "pending"
+      this.addProcess({
+        id: processId,
+        clientName: `${clientName} - ${groupId}`,
+        status: 'pending',
+        message: `Esperando envío (${i + 1}/${total})...`,
+        timestamp: new Date()
+      });
+
       // Notificar progreso
       if (onProgress) {
         onProgress(i + 1, total);
       }
 
+      // Actualizar estado a "processing"
+      this.updateProcessStatus(processId, 'processing', `Enviando ${groupId}...`);
+
       try {
         const response = await this.http.post(`${this.apiUrl}/orquestador`, config, { headers }).toPromise();
+
+        // Actualizar estado a "success"
+        this.updateProcessStatus(processId, 'success', `${groupId} enviado exitosamente`, response);
+
         results.push({
           index: i + 1,
           groupId: groupId,
@@ -176,6 +195,15 @@ export class OrchestratorService {
           response: response
         });
       } catch (error) {
+        // Actualizar estado a "error"
+        this.updateProcessStatus(
+          processId,
+          'error',
+          `Error al enviar ${groupId}: ${(error as any).error?.mensaje || (error as any).message || 'Error desconocido'}`,
+          null,
+          error
+        );
+
         errors.push({
           index: i + 1,
           groupId: groupId,

@@ -102,7 +102,11 @@
         <mat-form-field appearance="outline">
           <mat-label>Nombre Destino (Opcional)</mat-label>
           <input matInput [(ngModel)]="newTargetEntity().toName"
-                 placeholder="sales_transactions">
+                 placeholder="sales_transactions"
+                 [disabled]="isBlobStorage()">
+          @if (isBlobStorage()) {
+            <mat-hint>Campo deshabilitado para blobStorage</mat-hint>
+          }
         </mat-form-field>
       </div>
 

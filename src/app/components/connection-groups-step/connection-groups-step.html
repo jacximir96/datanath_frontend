@@ -1,9 +1,28 @@
 <div class="container">
   <h2>Definir Grupos de Conexión (Escenarios)</h2>
-  <p>El Grupo Principal muestra la configuración actual. Puede crear otros grupos (escenarios) y asignarles diferentes conexiones arrastrando un origen desde la paleta de la izquierda.</p>
 
-  <!-- NEW: Store Selection Section -->
-  @if (clientsWithStores().length > 0) {
+  @if (isT010()) {
+    <!-- T010: Groups not available -->
+    <mat-card class="info-card">
+      <mat-card-content>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <mat-icon style="color: #666; font-size: 48px; width: 48px; height: 48px;">info</mat-icon>
+          <div>
+            <h3 style="margin: 0 0 8px 0;">Grupos de Conexión no disponibles</h3>
+            <p style="margin: 0; color: #666;">
+              Los grupos de conexión no se utilizan en el tipo de transformación <strong>T010 (Configuración Básica)</strong>.
+              Las conexiones se configuran directamente en el paso anterior.
+            </p>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  } @else {
+    <!-- T012 or other: Groups available -->
+    <p>El Grupo Principal muestra la configuración actual. Puede crear otros grupos (escenarios) y asignarles diferentes conexiones arrastrando un origen desde la paleta de la izquierda.</p>
+
+    <!-- NEW: Store Selection Section -->
+    @if (clientsWithStores().length > 0) {
     <div class="stores-section">
       <h3>
         <mat-icon>category</mat-icon>
@@ -117,4 +136,5 @@
       </div>
     </div>
   </div>
+  }
 </div>
