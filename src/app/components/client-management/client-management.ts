@@ -61,8 +61,13 @@ export class ClientManagementComponent implements OnInit {
     const searchTerm = this.storeSearchValue().toLowerCase();
     const connections = this.availableConnections();
 
+    // Filtrar solo conexiones de MAXPOINT_LEGACY para el catálogo de items
+    const maxpointConnections = connections.filter(conn =>
+      conn.clientName === 'MAXPOINT_LEGACY'
+    );
+
     // Mapear conexiones a formato StoreItem para compatibilidad
-    const stores: StoreItem[] = connections.map(conn => ({
+    const stores: StoreItem[] = maxpointConnections.map(conn => ({
       id: conn.id,
       code: conn.clientId,
       name: conn.repository,
@@ -171,8 +176,14 @@ export class ClientManagementComponent implements OnInit {
   }
 
   getStoreById(storeId: string) {
-    // Buscar en las conexiones de GraphQL
-    const connection = this.availableConnections().find(c => c.id === storeId);
+    // Primero intentar buscar por ID
+    let connection = this.availableConnections().find(c => c.id === storeId);
+
+    // Si no se encuentra por ID, intentar buscar por clientId (para IDs antiguos/regenerados)
+    if (!connection) {
+      connection = this.availableConnections().find(c => c.clientId === storeId);
+    }
+
     if (connection) {
       return {
         id: connection.id,
@@ -185,12 +196,11 @@ export class ClientManagementComponent implements OnInit {
   }
 
   loadConnectionsFromGraphQL() {
-    if (!this.clientName) return;
-
     this.loadingConnections.set(true);
 
-    // Cargar TODAS las conexiones (sin paginación limitada)
-    this.graphqlService.getConnections(this.clientName, 0, 1000).subscribe({
+    // Cargar TODAS las conexiones de TODOS los clientes (sin filtro por clientName)
+    // Esto permite que el selector muestre items de cualquier cliente, no solo MAXPOINT_LEGACY
+    this.graphqlService.getConnections('', 0, 1000).subscribe({
       next: (response) => {
         this.loadingConnections.set(false);
         if (response.data && response.data.getConnections) {
@@ -323,6 +333,14 @@ export class ClientManagementComponent implements OnInit {
   private createOrUpdateConnection(clientConfigId: string, store: Origin, selectedStores: string[], clientId: string) {
     const client = this.clientForm();
 
+    // Convertir IDs a clientIds para que sobrevivan la regeneración diaria del catálogo
+    const associatedClientIds = selectedStores.length > 0
+      ? selectedStores.map(id => {
+          const conn = this.availableConnections().find(c => c.id === id);
+          return conn?.clientId;
+        }).filter(Boolean) as string[]
+      : [];
+
     // Preparar input para GraphQL
     const input = {
       clientConfigId: clientConfigId,
@@ -334,7 +352,7 @@ export class ClientManagementComponent implements OnInit {
       password: store.password,
       repository: store.repository,
       adapter: store.adapter,
-      associatedStores: selectedStores.length > 0 ? selectedStores : [],
+      associatedStores: associatedClientIds,
       storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : null
     };
 
@@ -346,14 +364,20 @@ export class ClientManagementComponent implements OnInit {
         if (connectionId) {
           this.graphqlService.updateConnection(connectionId, input).subscribe({
             next: (response) => {
-              // Actualizar en el formulario local
+              // Actualizar en el formulario local con IDs actuales para visualización inmediata
               const updatedStore: Origin = {
                 _connectionId: connectionId,
                 ...store,
                 associatedStores: selectedStores.length > 0 ? [...selectedStores] : undefined,
                 storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : undefined
               };
-              client.stores[this.editingStoreIndex!] = updatedStore;
+
+              // Actualizar el signal correctamente para que Angular detecte el cambio
+              this.clientForm.update(c => ({
+                ...c,
+                stores: c.stores.map((s, i) => i === this.editingStoreIndex ? updatedStore : s)
+              }));
+
               this.editingStoreIndex = null;
               this.resetNewStore();
               this.selectedStoresForConnection.set([]);
@@ -374,14 +398,19 @@ export class ClientManagementComponent implements OnInit {
           next: (response) => {
             const newConnection = response.data.createConnection;
 
-            // Agregar al formulario local con el ID de GraphQL
+            // Agregar al formulario local con IDs actuales para visualización inmediata
             const storeWithId: Origin = {
               _connectionId: newConnection.id,
               ...store,
               associatedStores: selectedStores.length > 0 ? [...selectedStores] : undefined,
               storeFilterField: selectedStores.length > 0 && store.storeFilterField ? store.storeFilterField : undefined
             };
-            client.stores.push(storeWithId);
+
+            // Actualizar el signal correctamente para que Angular detecte el cambio
+            this.clientForm.update(c => ({
+              ...c,
+              stores: [...c.stores, storeWithId]
+            }));
 
             this.resetNewStore();
             this.selectedStoresForConnection.set([]);
@@ -402,6 +431,20 @@ export class ClientManagementComponent implements OnInit {
     const client = this.clientForm();
     const store = client.stores[index];
 
+    // Los associatedStores pueden ser IDs actuales (UUIDs) o clientIds (códigos cortos)
+    // Necesitamos manejar ambos casos
+    const currentIds = (store.associatedStores || []).map(value => {
+      // Primero intentar buscar por ID (para valores que ya son UUIDs)
+      let conn = this.availableConnections().find(c => c.id === value);
+
+      // Si no se encuentra, intentar buscar por clientId (para valores que son códigos cortos)
+      if (!conn) {
+        conn = this.availableConnections().find(c => c.clientId === value);
+      }
+
+      return conn?.id || value; // Si no se encuentra, mantener el valor original
+    }).filter(Boolean) as string[];
+
     this.newStore.set({
       servidor: store.servidor,
       puerto: store.puerto,
@@ -409,12 +452,12 @@ export class ClientManagementComponent implements OnInit {
       password: store.password,
       repository: store.repository,
       adapter: store.adapter,
-      associatedStores: store.associatedStores || [],
+      associatedStores: currentIds,
       storeFilterField: store.storeFilterField || ''
     });
 
-    // Cargar los items asociados para edición
-    this.selectedStoresForConnection.set([...(store.associatedStores || [])]);
+    // Cargar los items asociados para edición usando los IDs actuales
+    this.selectedStoresForConnection.set([...currentIds]);
 
     this.editingStoreIndex = index;
   }
@@ -440,8 +483,11 @@ export class ClientManagementComponent implements OnInit {
       // Eliminar de GraphQL
       this.graphqlService.deleteConnection(connectionId).subscribe({
         next: () => {
-          // Eliminar del formulario local
-          client.stores.splice(index, 1);
+          // Actualizar el signal correctamente para que Angular detecte el cambio
+          this.clientForm.update(c => ({
+            ...c,
+            stores: c.stores.filter((_, i) => i !== index)
+          }));
 
           // Si estamos editando esta tienda, cancelar la edición
           if (this.editingStoreIndex === index) {
@@ -464,7 +510,11 @@ export class ClientManagementComponent implements OnInit {
       });
     } else {
       // Si no tiene connectionId (no debería pasar), solo eliminar localmente
-      client.stores.splice(index, 1);
+      this.clientForm.update(c => ({
+        ...c,
+        stores: c.stores.filter((_, i) => i !== index)
+      }));
+
       if (this.editingStoreIndex === index) {
         this.editingStoreIndex = null;
         this.resetNewStore();

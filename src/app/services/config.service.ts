@@ -451,8 +451,11 @@ export class ConfigService {
         storeBasedScenarios.forEach(scenario => {
           const storeId = scenario.storeFilter!;
 
-          // Buscar en las conexiones de GraphQL
-          const connection = graphqlConnections.find(c => c.id === storeId);
+          // Buscar en las conexiones de GraphQL (primero por ID, luego por clientId)
+          let connection = graphqlConnections.find(c => c.id === storeId);
+          if (!connection) {
+            connection = graphqlConnections.find(c => c.clientId === storeId);
+          }
 
           if (!connection) {
             return;
@@ -1279,17 +1282,29 @@ export class ConfigService {
         name: cc.name,
         description: cc.description || '',
         structureType: cc.structureType || 'same',
-        stores: clientConnections.map((conn: any) => ({
-          _connectionId: conn.id,
-          servidor: conn.servidor,
-          puerto: conn.puerto,
-          user: conn.user,
-          password: conn.password,
-          repository: conn.repository,
-          adapter: conn.adapter,
-          associatedStores: conn.associatedStores || [],
-          storeFilterField: conn.storeFilterField || undefined
-        })),
+        stores: clientConnections.map((conn: any) => {
+          // Convertir clientIds de associatedStores a IDs actuales del catálogo
+          let associatedStoresIds: string[] = [];
+          if (conn.associatedStores && conn.associatedStores.length > 0) {
+            associatedStoresIds = conn.associatedStores.map((clientIdValue: string) => {
+              // Buscar en connectionsData la conexión que tiene este clientId
+              const catalogConn = connectionsData.find(c => c.clientId === clientIdValue);
+              return catalogConn?.id || clientIdValue; // Si no se encuentra, mantener el valor original
+            }).filter(Boolean);
+          }
+
+          return {
+            _connectionId: conn.id,
+            servidor: conn.servidor,
+            puerto: conn.puerto,
+            user: conn.user,
+            password: conn.password,
+            repository: conn.repository,
+            adapter: conn.adapter,
+            associatedStores: associatedStoresIds,
+            storeFilterField: conn.storeFilterField || undefined
+          };
+        }),
         createdAt: cc.createdAt
       };
     });
@@ -1357,7 +1372,31 @@ export class ConfigService {
   }
 
   private applyLoadedConfig(savedConfig: SavedConfiguration): void {
-    this.configSignal.set({ ...savedConfig.config });
+    const config = { ...savedConfig.config };
+
+    // Convertir clientIds de associatedStores de vuelta a IDs actuales del catálogo
+    if (config.origins && config.origins.length > 0) {
+      const graphqlConnections = this.graphqlConnectionsSignal();
+
+      config.origins = config.origins.map(origin => {
+        if (origin.associatedStores && origin.associatedStores.length > 0) {
+          // Convertir clientIds a IDs actuales
+          const currentIds = origin.associatedStores.map((clientIdValue: string) => {
+            // Buscar la conexión que tiene este clientId
+            const conn = graphqlConnections.find(c => c.clientId === clientIdValue);
+            return conn?.id || clientIdValue; // Si no se encuentra, mantener el valor original
+          }).filter(Boolean);
+
+          return {
+            ...origin,
+            associatedStores: currentIds
+          };
+        }
+        return origin;
+      });
+    }
+
+    this.configSignal.set(config);
 
     // Cargar escenarios si existen
     if (savedConfig.scenarios && savedConfig.scenarios.length > 0) {
